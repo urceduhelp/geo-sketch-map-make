@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="si">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EDUHELP-GeoSketch</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --ink:#1c1f26;
+    --line:#d8dbe0;
+    --accent:#3a6ea5;
+    --accent-dark:#28517d;
+    --red:#e21b1b;
+    --muted:#9aa0a8;
+    --panel:#f4f5f7;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; font-family:"Segoe UI","Noto Sans Sinhala",Arial,sans-serif; background:#e7e9ec; color:var(--ink); }
+  h1.title{ text-align:center; font-weight:400; font-size:34px; margin:22px 0 14px; }
+
+  .toolbar{ display:flex; flex-wrap:wrap; justify-content:center; gap:10px; padding:6px 16px; }
+  .toolbar button, .toolbar label.filebtn{
+    font-family:inherit; font-size:14px; padding:9px 18px; border-radius:22px;
+    border:1.5px solid var(--ink); background:#fff; color:var(--ink); cursor:pointer;
+    display:inline-flex; align-items:center; gap:6px; white-space:nowrap;
+  }
+  .toolbar button:hover, .toolbar label.filebtn:hover{ background:#f0f2f5; }
+  .toolbar button.active{ background:var(--ink); color:#fff; }
+  #fileInput,#openInput{ display:none; }
+
+  .paletteRow{ display:flex; justify-content:center; align-items:center; gap:6px; padding:12px 16px 4px; flex-wrap:wrap; }
+  .swatch{ width:28px; height:24px; border-radius:3px; cursor:pointer; border:2px solid transparent; }
+  .swatch.selected{ border-color:var(--ink); transform:scale(1.08); }
+  #customColor{ width:30px; height:26px; padding:0; border:1px solid var(--line); border-radius:4px; cursor:pointer; }
+
+  .patternRow{ display:flex; justify-content:center; align-items:center; gap:8px; padding:2px 16px 8px; flex-wrap:wrap; }
+  .patSwatch{
+    width:36px; height:26px; border-radius:3px; cursor:pointer; overflow:hidden;
+    border:2px solid var(--line); background:#fff; display:flex; align-items:center; justify-content:center;
+  }
+  .patSwatch svg{ width:100%; height:100%; display:block; }
+  .patSwatch.selected{ border-color:var(--ink); }
+  .patSwatch.patNone{ font-size:13px; color:var(--muted); }
+
+  .hint{ text-align:center; font-size:13.5px; color:#333; padding:2px 16px 14px; }
+  .hint b{ color:#000; } .hint .step{ color:var(--accent); font-weight:600; }
+
+  .stage{ display:flex; justify-content:center; padding:10px 16px 60px; overflow:auto; }
+
+  #pageOuter{
+    position:relative; background:#fff; box-shadow:0 6px 24px rgba(0,0,0,.22); flex-shrink:0;
+  }
+  .borderFrame{
+    position:absolute; top:20mm; left:20mm; right:20mm; bottom:20mm;
+    border:1.6px solid #000; border-radius:16px; pointer-events:none;
+  }
+
+  .mapTitle{
+    position:absolute; top:0; left:0; right:0; height:20mm;
+    display:flex; align-items:center; justify-content:center; padding:0 24mm;
+    font-size:19px; font-weight:700; color:#111; text-align:center;
+    outline:none; cursor:text; z-index:3;
+  }
+  .mapTitle:empty:before{ content:'මාතෘකාව මෙතන click කර type කරන්න'; color:var(--muted); font-weight:400; font-size:14px; }
+  .mapTitle.editing{ outline:1.5px solid var(--accent); border-radius:4px; }
+
+  .colPlus{ position:absolute; top:4mm; }
+  .colPlus.left{ left:22mm; } .colPlus.right{ right:22mm; }
+  .plusBox{
+    width:20px; height:20px; border:2px solid var(--red); border-radius:4px; color:var(--red);
+    display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:700;
+    cursor:pointer; background:#fff; position:relative; z-index:5;
+  }
+  .plusBox:hover{ background:#ffecec; }
+  .plusLine{ position:absolute; top:20px; left:9px; width:1.4px; background:var(--red); }
+  .colPlus.right .plusLine{ left:auto; right:9px; }
+
+  .labelRow{ position:absolute; display:inline-flex; align-items:stretch; gap:0; max-width:66mm; }
+  .rowText{
+    display:inline-block; padding:2px 6px; min-width:16px; min-height:1.3em; outline:none;
+    font-size:13.5px; line-height:1.35; color:#111; background:#fff; border:1.4px solid var(--red);
+    cursor:text; white-space:normal; word-break:break-word;
+  }
+  .rowText.filled{ border-color:#000; color:#111; }
+  .rowText:empty:before{ content:'add text'; color:var(--muted); }
+  .rowText.editing{ outline:1.5px solid var(--accent); }
+  .rowSquare{
+    width:9px; height:9px; background:var(--red); flex:0 0 auto; align-self:center; margin:0 3px;
+    cursor:crosshair;
+  }
+  .labelRow.left .rowSquare{ order:2; }
+  .labelRow.left .rowText{ order:1; }
+  .labelRow.right .rowSquare{ order:1; }
+  .labelRow.right .rowText{ order:2; }
+
+  .rowDelete{
+    position:absolute; top:-8px; right:-8px; width:15px; height:15px; border-radius:50%;
+    background:var(--red); color:#fff; font-size:10px; line-height:15px; text-align:center;
+    cursor:pointer; display:none; z-index:6;
+  }
+  .labelRow:hover .rowDelete{ display:block; }
+  .labelRow.left .rowDelete{ right:-8px; left:auto; }
+  .labelRow.right .rowDelete{ left:-8px; right:auto; }
+
+  .imageLayer{ position:absolute; cursor:grab; }
+  .imageLayer:active{ cursor:grabbing; }
+  .imageLayer img{ width:100%; height:100%; display:block; user-select:none; -webkit-user-drag:none; pointer-events:none; }
+  .resizeHandle{
+    position:absolute; width:16px; height:16px; right:-8px; bottom:-8px;
+    background:var(--accent); border:2px solid #fff; border-radius:50%;
+    cursor:nwse-resize; box-shadow:0 0 0 1px rgba(0,0,0,.2); z-index:4;
+  }
+
+  #svgOverlay{ position:absolute; top:0; left:0; pointer-events:none; }
+  .areaShape{ cursor:move; pointer-events:fill; }
+  .connectorHit{ cursor:move; pointer-events:stroke; }
+  .connectorVisible, .connectorDot{ pointer-events:none; }
+  .shapeDelete{
+    position:absolute; width:17px; height:17px; border-radius:50%;
+    background:var(--red); color:#fff; font-size:11px; line-height:17px; text-align:center;
+    transform:translate(-50%,-50%); cursor:pointer; display:none; z-index:6;
+  }
+  .shapeDelete.show{ display:block; }
+
+  #pageOuter.mode-area{ cursor:crosshair; }
+  #pageOuter.mode-connector{ cursor:default; }
+  #pageOuter.mode-connector *{ cursor:default; }
+
+  .footerRow{ text-align:center; padding:6px 0 30px; font-size:12px; color:#9aa0a8; }
+</style>
+</head>
+<body>
+
+<h1 class="title">EDUHELP-GeoSketch</h1>
+
+<div class="toolbar">
+  <label class="filebtn" id="btnAddMap">🗺️ Add map<input type="file" id="fileInput" accept="image/*"></label>
+  <button id="btnRotate">🔄 Rotate Canvas</button>
+  <button id="btnSave">💾 Save</button>
+  <label class="filebtn" id="btnOpen">📂 Open<input type="file" id="openInput" accept="application/json"></label>
+  <button id="btnAreaTool">◧ Area Tool</button>
+  <button id="btnExportPdf">📄 EXPORT as PDF</button>
+  <button id="btnExportJpg">🖼️ EXPORT as JPG</button>
+  <button id="btnReset">🗑️ Reset</button>
+</div>
+
+<div class="paletteRow" id="paletteRow"></div>
+
+<div class="patternRow" id="patternRow"></div>
+
+<div class="hint">
+  When you use <b>area tool</b>-<span class="step">Step1.</span> Select area tool <span class="step">Step 2.</span> select color <span class="step">Step3.</span> draw on map
+</div>
+
+<div class="stage">
+  <div id="pageOuter">
+    <div class="borderFrame"></div>
+    <div class="mapTitle" id="mapTitle" contenteditable="false"></div>
+
+    <div class="colPlus left" id="plusLeft"><div class="plusBox">+</div><div class="plusLine"></div></div>
+    <div class="colPlus right" id="plusRight"><div class="plusBox">+</div><div class="plusLine"></div></div>
+
+    <svg id="svgOverlay">
+      <defs>
+        <pattern id="pat-diagonal" patternUnits="userSpaceOnUse" width="4" height="4">
+          <line x1="0" y1="4" x2="4" y2="0" stroke="#000" stroke-width="0.35"/>
+        </pattern>
+        <pattern id="pat-grid" patternUnits="userSpaceOnUse" width="4" height="4">
+          <path d="M0,0H4 M0,0V4" stroke="#000" stroke-width="0.3" fill="none"/>
+        </pattern>
+        <pattern id="pat-lines" patternUnits="userSpaceOnUse" width="4" height="3">
+          <line x1="0" y1="1.5" x2="4" y2="1.5" stroke="#000" stroke-width="0.3"/>
+        </pattern>
+        <pattern id="pat-wave" patternUnits="userSpaceOnUse" width="6" height="3">
+          <path d="M0,1.5 Q1.5,0 3,1.5 T6,1.5" stroke="#000" stroke-width="0.3" fill="none"/>
+        </pattern>
+        <pattern id="pat-dots" patternUnits="userSpaceOnUse" width="3" height="3">
+          <circle cx="1.5" cy="1.5" r="0.4" fill="#000"/>
+        </pattern>
+      </defs>
+    </svg>
+  </div>
+</div>
+
+<div class="footerRow">www.eduhelp.lk &nbsp;|&nbsp; geosketch-2026</div>
+
+<script>
+(function(){
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  const pageOuter = document.getElementById('pageOuter');
+  const svgOverlay = document.getElementById('svgOverlay');
+  const mapTitleEl = document.getElementById('mapTitle');
+  const plusLeft = document.getElementById('plusLeft');
+  const plusRight = document.getElementById('plusRight');
+  const paletteRow = document.getElementById('paletteRow');
+  const fileInput = document.getElementById('fileInput');
+  const openInput = document.getElementById('openInput');
+  const STORAGE_KEY = 'geosketch_project_v1';
+
+  const BORDER = 20;      // mm - inset of the black rounded frame
+  const ROW_TOP0 = 24;    // mm - first row's default top
+  const ROW_STEP = 9;     // mm - vertical spacing between stacked rows
+  const ROW_ANCHOR0 = BORDER + 4;  // mm - default distance from the page edge (kept inside the border frame)
+  const DOT_R = 1.4;      // mm - radius of the connector end-dot
+
+  let orientation = 'portrait';
+  let PAGE_W = 210, PAGE_H = 297;
+  let pxPerMm = 1;
+  let idCounter = 1;
+
+  let state = {
+    title: '',                   // map title, shown above the border frame
+    image: null,                 // {src,x,y,w,h,ratio}
+    rows: { left: [], right: [] }, // {id,side,top,anchor,text}
+    areas: [],                   // {id,points:[{x,y}],color,pattern}
+    connectors: []                // {id,points:[{x,y}]}
+  };
+
+  const rowEls = {};        // id -> {wrap, textEl, delBtn}
+  const areaEls = {};       // id -> {poly, delBtn}
+  const connectorEls = {};  // id -> {hit, visible, dot, delBtn}
+
+  let imgLayerEl = null;
+
+  function updatePxPerMm(){ pxPerMm = pageOuter.getBoundingClientRect().width / PAGE_W; }
+  window.addEventListener('resize', updatePxPerMm);
+
+  function applyPageSize(){
+    pageOuter.style.width = PAGE_W+'mm';
+    pageOuter.style.height = PAGE_H+'mm';
+    svgOverlay.setAttribute('viewBox','0 0 '+PAGE_W+' '+PAGE_H);
+    svgOverlay.setAttribute('width', PAGE_W+'mm');
+    svgOverlay.setAttribute('height', PAGE_H+'mm');
+    updatePxPerMm();
+  }
+  applyPageSize();
+
+  document.getElementById('btnRotate').addEventListener('click', function(){
+    orientation = orientation === 'portrait' ? 'landscape' : 'portrait';
+    const w=PAGE_W, h=PAGE_H; PAGE_W=h; PAGE_H=w;
+    applyPageSize();
+    autoSave();
+  });
+
+  /* ---------------- COLOR PALETTE ---------------- */
+  const PALETTE = [
+    '#f3c6de','#eaa6cf','#d7d7d7','#e8c9b0','#c9906a','#96654a',
+    '#e9f3df','#d7ecc0','#c3e29c','#a9d873',
+    '#cdeaf7','#a9def0','#6fc9e8','#3badd9',
+    '#f2e2b8','#e9cf94','#dcb46e','#c99a4c'
+  ];
+  let currentAreaColor = PALETTE[10];
+  PALETTE.forEach(function(c){
+    const sw = document.createElement('div');
+    sw.className = 'swatch';
+    sw.style.background = c;
+    if (c === currentAreaColor) sw.classList.add('selected');
+    sw.addEventListener('click', function(){
+      currentAreaColor = c;
+      paletteRow.querySelectorAll('.swatch').forEach(s=>s.classList.remove('selected'));
+      sw.classList.add('selected');
+    });
+    paletteRow.appendChild(sw);
+  });
+  const customColor = document.createElement('input');
+  customColor.type = 'color'; customColor.id = 'customColor'; customColor.value = '#7a4fd6';
+  customColor.title = 'කැමති වර්ණයක්';
+  customColor.addEventListener('input', function(){
+    currentAreaColor = customColor.value;
+    paletteRow.querySelectorAll('.swatch').forEach(s=>s.classList.remove('selected'));
+  });
+  paletteRow.appendChild(customColor);
+
+  /* ---------------- AREA FILL PATTERNS ---------------- */
+  const PATTERNS = [
+    { id:'none', label:'රටාවක් නැත' },
+    { id:'diagonal', label:'විකර්ණ රේඛා (කැලෑ/කඳු)' },
+    { id:'grid', label:'කොටු ජාලය (නගර/පතල්)' },
+    { id:'lines', label:'තිරස් රේඛා (කුඹුරු/වගා බිම්)' },
+    { id:'wave', label:'රැළි රේඛා (ජලාශ/වගුරු)' },
+    { id:'dots', label:'තිත් (වැලි/වෙරළ)' }
+  ];
+  let currentAreaPattern = 'none';
+  const patternRow = document.getElementById('patternRow');
+  PATTERNS.forEach(function(p){
+    const sw = document.createElement('div');
+    sw.className = 'patSwatch' + (p.id==='none' ? ' selected patNone' : '');
+    sw.title = p.label;
+    if (p.id === 'none'){
+      sw.textContent = '⛔';
+    } else {
+      const s = document.createElementNS(SVGNS,'svg');
+      s.setAttribute('viewBox','0 0 36 26');
+      const r = document.createElementNS(SVGNS,'rect');
+      r.setAttribute('x',0); r.setAttribute('y',0); r.setAttribute('width',36); r.setAttribute('height',26);
+      r.setAttribute('fill','url(#pat-'+p.id+')');
+      s.appendChild(r);
+      sw.appendChild(s);
+    }
+    sw.addEventListener('click', function(){
+      currentAreaPattern = p.id;
+      patternRow.querySelectorAll('.patSwatch').forEach(x=>x.classList.remove('selected'));
+      sw.classList.add('selected');
+    });
+    patternRow.appendChild(sw);
+  });
+
+  function hexToRgba(hex, a){
+    let h = hex.replace('#','');
+    if (h.length===3) h = h.split('').map(c=>c+c).join('');
+    const r=parseInt(h.substr(0,2),16), g=parseInt(h.substr(2,2),16), b=parseInt(h.substr(4,2),16);
+    return 'rgba('+r+','+g+','+b+','+a+')';
+  }
+
+  /* ---------------- AREA TOOL (free-form filled shapes) ---------------- */
+  let areaToolActive = false;
+  const btnAreaTool = document.getElementById('btnAreaTool');
+  btnAreaTool.addEventListener('click', function(){
+    areaToolActive = !areaToolActive;
+    btnAreaTool.classList.toggle('active', areaToolActive);
+    pageOuter.classList.toggle('mode-area', areaToolActive);
+  });
+
+  function isBackgroundTarget(target){
+    return target === pageOuter || target === svgOverlay || target.classList.contains('borderFrame') ||
+           (imgLayerEl && (target === imgLayerEl || imgLayerEl.contains(target) && !target.classList.contains('resizeHandle')));
+  }
+
+  pageOuter.addEventListener('mousedown', function(e){
+    if (!areaToolActive || drawingConnector) return;
+    if (e.target.classList.contains('resizeHandle')) return;
+    updatePxPerMm();
+    const rect = pageOuter.getBoundingClientRect();
+    const start = { x:(e.clientX-rect.left)/pxPerMm, y:(e.clientY-rect.top)/pxPerMm };
+    const points = [start];
+    const poly = document.createElementNS(SVGNS,'polygon');
+    poly.setAttribute('fill', hexToRgba(currentAreaColor,0.55));
+    poly.setAttribute('points', start.x+','+start.y);
+    svgOverlay.appendChild(poly);
+
+    function onMove(ev){
+      const x=(ev.clientX-rect.left)/pxPerMm, y=(ev.clientY-rect.top)/pxPerMm;
+      const last = points[points.length-1];
+      if (Math.hypot(x-last.x,y-last.y) < 0.7) return;
+      points.push({x,y});
+      poly.setAttribute('points', points.map(p=>p.x+','+p.y).join(' '));
+    }
+    function onUp(){
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      poly.remove();
+      if (points.length >= 3){
+        const item = { id: idCounter++, type:'area', points, color: currentAreaColor, pattern: currentAreaPattern };
+        state.areas.push(item);
+        buildAreaEl(item);
+        autoSave();
+      }
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+
+  function buildAreaEl(item){
+    const poly = document.createElementNS(SVGNS,'polygon');
+    poly.setAttribute('class','areaShape');
+    svgOverlay.appendChild(poly);
+    let patPoly = null;
+    if (item.pattern && item.pattern !== 'none'){
+      patPoly = document.createElementNS(SVGNS,'polygon');
+      patPoly.style.pointerEvents = 'none';
+      svgOverlay.appendChild(patPoly);
+    }
+    const delBtn = document.createElement('div');
+    delBtn.className = 'shapeDelete';
+    delBtn.textContent = '×';
+    pageOuter.appendChild(delBtn);
+    areaEls[item.id] = { poly, patPoly, delBtn };
+    applyAreaStyle(item);
+
+    poly.addEventListener('mousedown', function(e){
+      if (areaToolActive || drawingConnector) return;
+      e.stopPropagation();
+      selectShape(item.id, delBtn);
+      const startPts = item.points.map(p=>({x:p.x,y:p.y}));
+      const startX=e.clientX, startY=e.clientY;
+      function onMove(ev){
+        const dxMm=(ev.clientX-startX)/pxPerMm, dyMm=(ev.clientY-startY)/pxPerMm;
+        item.points = startPts.map(p=>({x:p.x+dxMm,y:p.y+dyMm}));
+        applyAreaStyle(item);
+      }
+      function onUp(){
+        document.removeEventListener('mousemove',onMove);
+        document.removeEventListener('mouseup',onUp);
+        autoSave();
+      }
+      document.addEventListener('mousemove',onMove);
+      document.addEventListener('mouseup',onUp);
+    });
+    delBtn.addEventListener('mousedown', e=>e.stopPropagation());
+    delBtn.addEventListener('click', function(e){ e.stopPropagation(); removeArea(item.id); });
+  }
+  function applyAreaStyle(item){
+    const refs = areaEls[item.id]; if(!refs) return;
+    const ptsStr = item.points.map(p=>p.x+','+p.y).join(' ');
+    refs.poly.setAttribute('points', ptsStr);
+    refs.poly.setAttribute('fill', hexToRgba(item.color,0.55));
+    if (refs.patPoly){
+      refs.patPoly.setAttribute('points', ptsStr);
+      refs.patPoly.setAttribute('fill', item.pattern && item.pattern!=='none' ? 'url(#pat-'+item.pattern+')' : 'none');
+    }
+    let sx=0,sy=0; item.points.forEach(p=>{sx+=p.x;sy+=p.y;});
+    refs.delBtn.style.left = (sx/item.points.length)+'mm';
+    refs.delBtn.style.top = (sy/item.points.length)+'mm';
+  }
+  function removeArea(id){
+    state.areas = state.areas.filter(a=>a.id!==id);
+    if (areaEls[id]){ areaEls[id].poly.remove(); if(areaEls[id].patPoly) areaEls[id].patPoly.remove(); areaEls[id].delBtn.remove(); delete areaEls[id]; }
+    autoSave();
+  }
+
+  let selectedShapeDelBtn = null;
+  function selectShape(id, delBtn){
+    document.querySelectorAll('.shapeDelete.show').forEach(b=>b.classList.remove('show'));
+    delBtn.classList.add('show');
+    selectedShapeDelBtn = delBtn;
+  }
+  pageOuter.addEventListener('mousedown', function(e){
+    if (isBackgroundTarget(e.target)){
+      document.querySelectorAll('.shapeDelete.show').forEach(b=>b.classList.remove('show'));
+    }
+  });
+
+  /* ---------------- CONNECTOR TOOL (orthogonal dashed line + end dot) ---------------- */
+  let drawingConnector = null; // {points:[{x,y}]}
+  let previewPoly = null;
+  let clickTimer = null;
+
+  function snapOrtho(last, cur){
+    const dx = cur.x-last.x, dy = cur.y-last.y;
+    if (Math.abs(dx) >= Math.abs(dy)) return { x: cur.x, y: last.y };
+    return { x: last.x, y: cur.y };
+  }
+
+  function beginConnector(x,y){
+    drawingConnector = { points: [{x,y}] };
+    previewPoly = document.createElementNS(SVGNS,'polyline');
+    previewPoly.setAttribute('fill','none');
+    previewPoly.setAttribute('stroke','#000');
+    previewPoly.setAttribute('stroke-width','1.2');
+    previewPoly.setAttribute('stroke-linecap','round');
+    previewPoly.setAttribute('stroke-dasharray','0.1,1.6');
+    previewPoly.setAttribute('points', x+','+y);
+    svgOverlay.appendChild(previewPoly);
+    pageOuter.classList.add('mode-connector');
+  }
+  function currentMouseMm(e){
+    const rect = pageOuter.getBoundingClientRect();
+    return { x:(e.clientX-rect.left)/pxPerMm, y:(e.clientY-rect.top)/pxPerMm };
+  }
+  let lastSnap = null;
+  pageOuter.addEventListener('mousemove', function(e){
+    if (!drawingConnector) return;
+    const last = drawingConnector.points[drawingConnector.points.length-1];
+    const cur = currentMouseMm(e);
+    lastSnap = snapOrtho(last, cur);
+    const pts = drawingConnector.points.concat([lastSnap]);
+    previewPoly.setAttribute('points', pts.map(p=>p.x+','+p.y).join(' '));
+  });
+  pageOuter.addEventListener('click', function(e){
+    if (!drawingConnector) return;
+    if (!lastSnap) return;
+    drawingConnector.points.push(lastSnap);
+  });
+  pageOuter.addEventListener('dblclick', function(e){
+    if (!drawingConnector) return;
+    /* a dblclick is preceded by two 'click' events, so the click handler
+       above already appended a duplicate point for the 2nd click - drop it */
+    if (drawingConnector.points.length > 1) drawingConnector.points.pop();
+    /* recompute the exact final point from this dblclick's own coordinates
+       (rather than the last cached mousemove snap) so the black dot lands
+       precisely where the pointer tip is, not slightly off from it */
+    const prev = drawingConnector.points[drawingConnector.points.length-1];
+    const cur = currentMouseMm(e);
+    const exact = snapOrtho(prev, cur);
+    drawingConnector.points.push(exact);
+    finalizeConnector();
+  });
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape' && drawingConnector){
+      if (clickTimer){ clearTimeout(clickTimer); clickTimer=null; }
+      if (previewPoly) previewPoly.remove();
+      drawingConnector = null; lastSnap = null;
+      pageOuter.classList.remove('mode-connector');
+    }
+  });
+  function finalizeConnector(){
+    if (previewPoly) previewPoly.remove();
+    previewPoly = null;
+    if (drawingConnector.points.length >= 2){
+      const item = { id: idCounter++, type:'connector', points: drawingConnector.points };
+      state.connectors.push(item);
+      buildConnectorEl(item);
+      autoSave();
+    }
+    drawingConnector = null; lastSnap = null;
+    pageOuter.classList.remove('mode-connector');
+  }
+
+  function buildConnectorEl(item){
+    const hit = document.createElementNS(SVGNS,'polyline');
+    hit.setAttribute('class','connectorHit');
+    hit.setAttribute('fill','none'); hit.setAttribute('stroke','transparent'); hit.setAttribute('stroke-width','3.5');
+    const visible = document.createElementNS(SVGNS,'polyline');
+    visible.setAttribute('class','connectorVisible');
+    visible.setAttribute('fill','none'); visible.setAttribute('stroke','#000');
+    visible.setAttribute('stroke-width','1.2'); visible.setAttribute('stroke-linecap','round');
+    visible.setAttribute('stroke-dasharray','0.1,1.6');
+    const dot = document.createElementNS(SVGNS,'circle');
+    dot.setAttribute('class','connectorDot'); dot.setAttribute('fill','#000'); dot.setAttribute('r', DOT_R);
+    svgOverlay.appendChild(hit); svgOverlay.appendChild(visible); svgOverlay.appendChild(dot);
+    const delBtn = document.createElement('div');
+    delBtn.className = 'shapeDelete'; delBtn.textContent = '×';
+    pageOuter.appendChild(delBtn);
+    connectorEls[item.id] = { hit, visible, dot, delBtn };
+    applyConnectorStyle(item);
+
+    hit.addEventListener('mousedown', function(e){
+      if (drawingConnector || areaToolActive) return;
+      e.stopPropagation();
+      selectShape(item.id, delBtn);
+      const startPts = item.points.map(p=>({x:p.x,y:p.y}));
+      const startX=e.clientX, startY=e.clientY;
+      function onMove(ev){
+        const dxMm=(ev.clientX-startX)/pxPerMm, dyMm=(ev.clientY-startY)/pxPerMm;
+        item.points = startPts.map(p=>({x:p.x+dxMm,y:p.y+dyMm}));
+        applyConnectorStyle(item);
+      }
+      function onUp(){
+        document.removeEventListener('mousemove',onMove);
+        document.removeEventListener('mouseup',onUp);
+        autoSave();
+      }
+      document.addEventListener('mousemove',onMove);
+      document.addEventListener('mouseup',onUp);
+    });
+    delBtn.addEventListener('mousedown', e=>e.stopPropagation());
+    delBtn.addEventListener('click', function(e){ e.stopPropagation(); removeConnector(item.id); });
+  }
+  function applyConnectorStyle(item){
+    const refs = connectorEls[item.id]; if(!refs) return;
+    const attr = item.points.map(p=>p.x+','+p.y).join(' ');
+    refs.hit.setAttribute('points', attr);
+    refs.visible.setAttribute('points', attr);
+    const last = item.points[item.points.length-1];
+    refs.dot.setAttribute('cx', last.x); refs.dot.setAttribute('cy', last.y);
+    refs.delBtn.style.left = last.x+'mm'; refs.delBtn.style.top = last.y+'mm';
+  }
+  function removeConnector(id){
+    state.connectors = state.connectors.filter(c=>c.id!==id);
+    if (connectorEls[id]){
+      const r=connectorEls[id];
+      r.hit.remove(); r.visible.remove(); r.dot.remove(); r.delBtn.remove();
+      delete connectorEls[id];
+    }
+    autoSave();
+  }
+
+  /* ---------------- MAP TITLE (above the border frame) ---------------- */
+  mapTitleEl.addEventListener('mousedown', function(e){
+    if (drawingConnector) return;
+    if (mapTitleEl.classList.contains('editing')) return;
+    e.stopPropagation();
+    if (areaToolActive){
+      areaToolActive = false;
+      btnAreaTool.classList.remove('active');
+      pageOuter.classList.remove('mode-area');
+    }
+  });
+  mapTitleEl.addEventListener('click', function(e){
+    if (drawingConnector || mapTitleEl.classList.contains('editing')) return;
+    enterTitleEdit();
+  });
+  function enterTitleEdit(){
+    mapTitleEl.contentEditable = 'true';
+    mapTitleEl.classList.add('editing');
+    mapTitleEl.focus();
+    const range = document.createRange(); range.selectNodeContents(mapTitleEl); range.collapse(false);
+    const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+    function finish(){
+      mapTitleEl.contentEditable = 'false';
+      mapTitleEl.classList.remove('editing');
+      state.title = (mapTitleEl.textContent || '').trim();
+      mapTitleEl.textContent = state.title;
+      mapTitleEl.removeEventListener('blur', finish);
+      autoSave();
+    }
+    mapTitleEl.addEventListener('blur', finish);
+    mapTitleEl.addEventListener('keydown', function(ev){
+      if (ev.key==='Enter'){ ev.preventDefault(); mapTitleEl.blur(); }
+      if (ev.key==='Escape'){ mapTitleEl.blur(); }
+    });
+  }
+
+  /* ---------------- LABEL ROWS (left / right stacked columns) ---------------- */
+  function addRow(side){
+    const arr = state.rows[side];
+    const row = { id: idCounter++, side, top: ROW_TOP0 + arr.length*ROW_STEP, anchor: ROW_ANCHOR0, text:'' };
+    arr.push(row);
+    buildRowEl(row);
+    autoSave();
+    return row;
+  }
+  plusLeft.querySelector('.plusBox').addEventListener('click', ()=>addRow('left'));
+  plusRight.querySelector('.plusBox').addEventListener('click', ()=>addRow('right'));
+
+  function buildRowEl(row){
+    const wrap = document.createElement('div');
+    wrap.className = 'labelRow ' + row.side;
+    wrap.dataset.id = row.id; wrap.dataset.side = row.side;
+    wrap.style.top = row.top+'mm';
+    if (row.side === 'left') wrap.style.left = row.anchor+'mm';
+    else wrap.style.right = row.anchor+'mm';
+
+    const textEl = document.createElement('div');
+    textEl.className = 'rowText';
+    textEl.contentEditable = 'false';
+    textEl.textContent = row.text;
+    if (row.text) textEl.classList.add('filled');
+
+    const square = document.createElement('div');
+    square.className = 'rowSquare';
+
+    const delBtn = document.createElement('div');
+    delBtn.className = 'rowDelete'; delBtn.textContent = '×';
+
+    wrap.appendChild(textEl); wrap.appendChild(square); wrap.appendChild(delBtn);
+    pageOuter.appendChild(wrap);
+    rowEls[row.id] = { wrap, textEl, delBtn };
+
+    /* drag row (from the text box) vs click-to-edit */
+    textEl.addEventListener('mousedown', function(e){
+      if (drawingConnector) return;
+      if (textEl.classList.contains('editing')) return;
+      e.stopPropagation();
+      if (areaToolActive){
+        /* clicking a text box always means "I want to type", even if the
+           area tool is still selected - drop out of area mode and edit */
+        areaToolActive = false;
+        btnAreaTool.classList.remove('active');
+        pageOuter.classList.remove('mode-area');
+        enterRowEdit(textEl, row);
+        return;
+      }
+      const startClientX=e.clientX, startClientY=e.clientY;
+      const startTop=row.top, startAnchor=row.anchor;
+      let moved=false;
+      function onMove(ev){
+        const dxMm=(ev.clientX-startClientX)/pxPerMm, dyMm=(ev.clientY-startClientY)/pxPerMm;
+        if (Math.abs(dxMm)>1 || Math.abs(dyMm)>1) moved=true;
+        if (moved){
+          row.top = startTop+dyMm;
+          row.anchor = row.side==='left' ? startAnchor+dxMm : startAnchor-dxMm;
+          wrap.style.top = row.top+'mm';
+          if (row.side==='left') wrap.style.left = row.anchor+'mm';
+          else wrap.style.right = row.anchor+'mm';
+        }
+      }
+      function onUp(){
+        document.removeEventListener('mousemove',onMove);
+        document.removeEventListener('mouseup',onUp);
+        if (moved) autoSave();
+        else enterRowEdit(textEl, row);
+      }
+      document.addEventListener('mousemove',onMove);
+      document.addEventListener('mouseup',onUp);
+    });
+
+    /* connector handle */
+    square.addEventListener('mousedown', function(e){
+      e.stopPropagation(); e.preventDefault();
+      if (drawingConnector || areaToolActive) return;
+      updatePxPerMm();
+      const rect = pageOuter.getBoundingClientRect();
+      const sqRect = square.getBoundingClientRect();
+      const sx = (sqRect.left + sqRect.width/2 - rect.left)/pxPerMm;
+      const sy = (sqRect.top + sqRect.height/2 - rect.top)/pxPerMm;
+      beginConnector(sx, sy);
+    });
+
+    delBtn.addEventListener('mousedown', e=>e.stopPropagation());
+    delBtn.addEventListener('click', function(e){ e.stopPropagation(); removeRow(row); });
+  }
+
+  function enterRowEdit(el, row){
+    el.classList.add('editing');
+    el.contentEditable = 'true';
+    el.focus();
+    const range = document.createRange(); range.selectNodeContents(el); range.collapse(false);
+    const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+    function finish(){
+      el.contentEditable = 'false';
+      el.classList.remove('editing');
+      row.text = (el.textContent || '').trim();
+      el.textContent = row.text;
+      el.classList.toggle('filled', !!row.text);
+      el.removeEventListener('blur', finish);
+      autoSave();
+    }
+    el.addEventListener('blur', finish);
+    el.addEventListener('keydown', function(ev){
+      if (ev.key==='Enter' && !ev.shiftKey){ ev.preventDefault(); el.blur(); }
+      if (ev.key==='Escape'){ el.blur(); }
+    });
+  }
+
+  function removeRow(row){
+    const arr = state.rows[row.side];
+    state.rows[row.side] = arr.filter(r=>r.id!==row.id);
+    if (rowEls[row.id]){ rowEls[row.id].wrap.remove(); delete rowEls[row.id]; }
+    autoSave();
+  }
+
+  /* ---------------- MAP IMAGE ---------------- */
+  function fitImageToPage(naturalW, naturalH){
+    const availW = PAGE_W - BORDER*2, availH = PAGE_H - BORDER*2;
+    const ratio = naturalW/naturalH;
+    let w,h;
+    if (availW/availH > ratio){ h=availH; w=h*ratio; } else { w=availW; h=w/ratio; }
+    return { x: BORDER+(availW-w)/2, y: BORDER+(availH-h)/2, w, h };
+  }
+  function loadImageFromDataUrl(dataUrl, existingRect){
+    const im = new Image();
+    im.onload = function(){
+      const rect = existingRect || fitImageToPage(im.naturalWidth, im.naturalHeight);
+      state.image = { src:dataUrl, x:rect.x, y:rect.y, w:rect.w, h:rect.h, ratio: im.naturalWidth/im.naturalHeight };
+      renderImage();
+      autoSave();
+    };
+    im.src = dataUrl;
+  }
+  fileInput.addEventListener('change', function(e){
+    const f = e.target.files[0]; if (!f) return;
+    const reader = new FileReader();
+    reader.onload = ev => loadImageFromDataUrl(ev.target.result, null);
+    reader.readAsDataURL(f);
+    fileInput.value = '';
+  });
+  function renderImage(){
+    if (imgLayerEl){ imgLayerEl.remove(); imgLayerEl=null; }
+    if (!state.image) return;
+    imgLayerEl = document.createElement('div');
+    imgLayerEl.className = 'imageLayer';
+    applyImageStyle();
+    const imgEl = document.createElement('img');
+    imgEl.src = state.image.src;
+    imgLayerEl.appendChild(imgEl);
+    const handle = document.createElement('div');
+    handle.className = 'resizeHandle';
+    imgLayerEl.appendChild(handle);
+    pageOuter.insertBefore(imgLayerEl, svgOverlay);
+
+    imgLayerEl.addEventListener('mousedown', function(e){
+      if (e.target===handle || areaToolActive || drawingConnector) return;
+      e.preventDefault(); e.stopPropagation();
+      updatePxPerMm();
+      const startX=e.clientX, startY=e.clientY, sx=state.image.x, sy=state.image.y;
+      function onMove(ev){
+        state.image.x = sx + (ev.clientX-startX)/pxPerMm;
+        state.image.y = sy + (ev.clientY-startY)/pxPerMm;
+        applyImageStyle();
+      }
+      function onUp(){ document.removeEventListener('mousemove',onMove); document.removeEventListener('mouseup',onUp); autoSave(); }
+      document.addEventListener('mousemove',onMove); document.addEventListener('mouseup',onUp);
+    });
+    handle.addEventListener('mousedown', function(e){
+      e.stopPropagation(); e.preventDefault();
+      updatePxPerMm();
+      const startX=e.clientX, startW=state.image.w, ratio=state.image.ratio;
+      function onMove(ev){
+        const newW = Math.max(10, startW + (ev.clientX-startX)/pxPerMm);
+        state.image.w = newW; state.image.h = newW/ratio;
+        applyImageStyle();
+      }
+      function onUp(){ document.removeEventListener('mousemove',onMove); document.removeEventListener('mouseup',onUp); autoSave(); }
+      document.addEventListener('mousemove',onMove); document.addEventListener('mouseup',onUp);
+    });
+  }
+  function applyImageStyle(){
+    if (!imgLayerEl) return;
+    imgLayerEl.style.left = state.image.x+'mm';
+    imgLayerEl.style.top = state.image.y+'mm';
+    imgLayerEl.style.width = state.image.w+'mm';
+    imgLayerEl.style.height = state.image.h+'mm';
+  }
+
+  /* ---------------- SAVE / OPEN / AUTOSAVE ---------------- */
+  function serialize(){
+    return JSON.stringify({ orientation, PAGE_W, PAGE_H, title: state.title, image: state.image, rows: state.rows, areas: state.areas, connectors: state.connectors });
+  }
+  function autoSave(){ try{ localStorage.setItem(STORAGE_KEY, serialize()); }catch(e){} }
+
+  function clearAll(){
+    Object.values(rowEls).forEach(r=>r.wrap.remove());
+    Object.values(areaEls).forEach(a=>{a.poly.remove(); if(a.patPoly)a.patPoly.remove(); a.delBtn.remove();});
+    Object.values(connectorEls).forEach(c=>{c.hit.remove(); c.visible.remove(); c.dot.remove(); c.delBtn.remove();});
+    Object.keys(rowEls).forEach(k=>delete rowEls[k]);
+    Object.keys(areaEls).forEach(k=>delete areaEls[k]);
+    Object.keys(connectorEls).forEach(k=>delete connectorEls[k]);
+    if (imgLayerEl){ imgLayerEl.remove(); imgLayerEl=null; }
+    mapTitleEl.textContent = '';
+  }
+
+  function loadProjectData(data){
+    clearAll();
+    orientation = data.orientation || 'portrait';
+    PAGE_W = data.PAGE_W || 210; PAGE_H = data.PAGE_H || 297;
+    applyPageSize();
+    state = { title: data.title || '', image:null, rows:{left:[],right:[]}, areas: data.areas||[], connectors: data.connectors||[] };
+    mapTitleEl.textContent = state.title;
+    let maxId = 0;
+    (data.rows && data.rows.left || []).forEach(r=>{ state.rows.left.push(r); maxId=Math.max(maxId,r.id); });
+    (data.rows && data.rows.right || []).forEach(r=>{ state.rows.right.push(r); maxId=Math.max(maxId,r.id); });
+    state.areas.forEach(a=>maxId=Math.max(maxId,a.id));
+    state.connectors.forEach(c=>maxId=Math.max(maxId,c.id));
+    idCounter = maxId+1;
+
+    if (data.image) loadImageFromDataUrl(data.image.src, {x:data.image.x,y:data.image.y,w:data.image.w,h:data.image.h});
+    state.rows.left.forEach(buildRowEl);
+    state.rows.right.forEach(buildRowEl);
+    state.areas.forEach(buildAreaEl);
+    state.connectors.forEach(buildConnectorEl);
+  }
+
+  document.getElementById('btnSave').addEventListener('click', function(){
+    const uri = 'data:application/json;charset=utf-8,'+encodeURIComponent(serialize());
+    const a=document.createElement('a'); a.href=uri; a.download='geosketch-project.json'; a.click();
+  });
+  openInput.addEventListener('change', function(e){
+    const f=e.target.files[0]; if(!f) return;
+    const reader=new FileReader();
+    reader.onload=function(ev){
+      try{ const data=JSON.parse(ev.target.result); loadProjectData(data); autoSave(); }
+      catch(err){ alert('ගොනුව කියවීමට නොහැකි විය.'); }
+    };
+    reader.readAsText(f);
+    openInput.value='';
+  });
+
+  document.getElementById('btnReset').addEventListener('click', function(){
+    if (!confirm('සියලුම සිතියම් සහ ලකුණු කළ ස්ථාන මකා, මුල සිට ආරම්භ කරන්නද?')) return;
+    clearAll();
+    orientation = 'portrait';
+    PAGE_W = 210; PAGE_H = 297;
+    applyPageSize();
+    state = { title:'', image:null, rows:{left:[],right:[]}, areas:[], connectors:[] };
+    idCounter = 1;
+    try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
+  });
+
+  /* Every fresh page load always starts blank - no auto-restore of a previous
+     session, even if something was auto-saved earlier. */
+
+  /* ---------------- EXPORT (drawn manually to canvas, decorative UI never included) ---------------- */
+  const canvasPatternCache = {};
+  function getCanvasPattern(ctx, type, ppm){
+    const key = type+'@'+ppm;
+    if (canvasPatternCache[key]) return canvasPatternCache[key];
+    const specs = { diagonal:{w:4,h:4}, grid:{w:4,h:4}, lines:{w:4,h:3}, wave:{w:6,h:3}, dots:{w:3,h:3} };
+    const spec = specs[type]; if (!spec) return '#000';
+    const w = Math.max(2, Math.round(spec.w*ppm)), h = Math.max(2, Math.round(spec.h*ppm));
+    const tile = document.createElement('canvas'); tile.width=w; tile.height=h;
+    const tctx = tile.getContext('2d');
+    tctx.strokeStyle = '#000'; tctx.fillStyle = '#000';
+    tctx.lineWidth = Math.max(1, 0.3*ppm);
+    tctx.lineCap = 'square';
+    if (type==='diagonal'){
+      tctx.beginPath(); tctx.moveTo(0,h); tctx.lineTo(w,0); tctx.stroke();
+    } else if (type==='grid'){
+      tctx.beginPath(); tctx.moveTo(0,0); tctx.lineTo(w,0); tctx.moveTo(0,0); tctx.lineTo(0,h); tctx.stroke();
+    } else if (type==='lines'){
+      tctx.beginPath(); tctx.moveTo(0,h/2); tctx.lineTo(w,h/2); tctx.stroke();
+    } else if (type==='wave'){
+      tctx.beginPath();
+      tctx.moveTo(0,h/2);
+      tctx.quadraticCurveTo(w*0.25,0, w*0.5,h/2);
+      tctx.quadraticCurveTo(w*0.75,h, w,h/2);
+      tctx.stroke();
+    } else if (type==='dots'){
+      tctx.beginPath(); tctx.arc(w/2,h/2, Math.max(1,0.4*ppm), 0, Math.PI*2); tctx.fill();
+    }
+    const pat = ctx.createPattern(tile,'repeat');
+    canvasPatternCache[key] = pat;
+    return pat;
+  }
+  function drawRoundedRectStroke(ctx,x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+    ctx.stroke();
+  }
+
+  function renderPageToCanvas(dpi){
+    return new Promise(function(resolve,reject){
+      const ppm = dpi/25.4;
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(PAGE_W*ppm);
+      canvas.height = Math.round(PAGE_H*ppm);
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0,0,canvas.width,canvas.height);
+
+      function finishDraw(){
+        // border frame
+        ctx.strokeStyle = '#000'; ctx.lineWidth = Math.max(1, 1.2*ppm/2.83);
+        drawRoundedRectStroke(ctx, BORDER*ppm, BORDER*ppm, canvas.width-2*BORDER*ppm, canvas.height-2*BORDER*ppm, 6*ppm);
+
+        // map title, printed above the border frame near the top edge
+        if (state.title){
+          const titleFontPx = 15 * (ppm*25.4/72);
+          ctx.font = '700 '+titleFontPx+'px "Noto Sans Sinhala","Segoe UI",Arial,sans-serif';
+          ctx.fillStyle = '#111';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(state.title, canvas.width/2, (BORDER/2)*ppm, canvas.width - 2*BORDER*ppm);
+        }
+
+        // area fills
+        state.areas.forEach(function(a){
+          ctx.save();
+          ctx.beginPath();
+          a.points.forEach((p,i)=>{ if(i===0) ctx.moveTo(p.x*ppm,p.y*ppm); else ctx.lineTo(p.x*ppm,p.y*ppm); });
+          ctx.closePath();
+          ctx.fillStyle = hexToRgba(a.color,0.55);
+          ctx.fill();
+          if (a.pattern && a.pattern !== 'none'){
+            ctx.clip();
+            ctx.fillStyle = getCanvasPattern(ctx, a.pattern, ppm);
+            ctx.fillRect(0,0,canvas.width,canvas.height);
+          }
+          ctx.restore();
+        });
+
+        // connectors: round-dot black line + end dot
+        state.connectors.forEach(function(c){
+          ctx.strokeStyle = '#000';
+          ctx.lineWidth = Math.max(1, 1.2*ppm/2.83);
+          ctx.lineCap = 'round';
+          ctx.setLineDash([0.001, 1.6*ppm/2.83*2]);
+          ctx.beginPath();
+          c.points.forEach((p,i)=>{ if(i===0) ctx.moveTo(p.x*ppm,p.y*ppm); else ctx.lineTo(p.x*ppm,p.y*ppm); });
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.lineCap = 'butt';
+          const last = c.points[c.points.length-1];
+          ctx.fillStyle = '#000';
+          ctx.beginPath(); ctx.arc(last.x*ppm, last.y*ppm, DOT_R*ppm, 0, Math.PI*2); ctx.fill();
+        });
+
+        // rows: use live DOM geometry of the actual text box for exact fidelity
+        const pageRect = pageOuter.getBoundingClientRect();
+        const screenPpm = pageRect.width / PAGE_W;
+        const scale = ppm/screenPpm;
+        function drawRow(row){
+          if (!row.text) return;
+          const refs = rowEls[row.id]; if (!refs) return;
+          const r = refs.textEl.getBoundingClientRect();
+          const x = (r.left - pageRect.left)*scale, y=(r.top-pageRect.top)*scale;
+          const w = r.width*scale, h = r.height*scale;
+          const fontPx = 13.5 * (ppm*25.4/72) * 1.15;
+          ctx.font = fontPx+'px "Noto Sans Sinhala","Segoe UI",Arial,sans-serif';
+          ctx.fillStyle = '#111';
+          ctx.textBaseline = 'middle';
+          ctx.textAlign = 'left';
+          const pad = 5*ppm/2.83;
+          ctx.fillText(row.text, x+pad, y+h/2, w-2*pad);
+        }
+        state.rows.left.forEach(drawRow);
+        state.rows.right.forEach(drawRow);
+
+        // copyright credit, printed outside the border frame near the bottom edge
+        const creditFontPx = 10 * (ppm*25.4/72);
+        ctx.font = creditFontPx+'px "Noto Sans Sinhala","Segoe UI",Arial,sans-serif';
+        ctx.fillStyle = '#888888';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('www.eduhelp.lk  |  geosketch-2026', canvas.width/2, (PAGE_H - BORDER/2)*ppm);
+
+        resolve(canvas);
+      }
+
+      if (state.image){
+        const im = new Image();
+        im.onload = function(){
+          ctx.drawImage(im, state.image.x*ppm, state.image.y*ppm, state.image.w*ppm, state.image.h*ppm);
+          finishDraw();
+        };
+        im.onerror = ()=>reject(new Error('image load failed'));
+        im.src = state.image.src;
+      } else finishDraw();
+    });
+  }
+
+  document.getElementById('btnExportJpg').addEventListener('click', function(){
+    renderPageToCanvas(300).then(function(canvas){
+      const a=document.createElement('a');
+      a.href = canvas.toDataURL('image/jpeg',0.95);
+      a.download = 'geosketch-page.jpg'; a.click();
+    }).catch(err=>alert('Export අසාර්ථක විය: '+err.message));
+  });
+  document.getElementById('btnExportPdf').addEventListener('click', function(){
+    renderPageToCanvas(300).then(function(canvas){
+      if (!window.jspdf){ alert('PDF library load නොවීය.'); return; }
+      const { jsPDF } = window.jspdf;
+      const orient = PAGE_W > PAGE_H ? 'landscape' : 'portrait';
+      const pdf = new jsPDF({ unit:'mm', format:[PAGE_W,PAGE_H], orientation: orient });
+      pdf.addImage(canvas.toDataURL('image/jpeg',0.95), 'JPEG', 0, 0, PAGE_W, PAGE_H, undefined, 'FAST');
+      const a=document.createElement('a');
+      a.href = pdf.output('datauristring'); a.download = 'geosketch-page.pdf'; a.click();
+    }).catch(err=>alert('Export අසාර්ථක විය: '+err.message));
+  });
+
+  updatePxPerMm();
+})();
+</script>
+</body>
+</html>
