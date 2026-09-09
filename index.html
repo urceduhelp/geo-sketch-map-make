@@ -29,6 +29,18 @@
   .toolbar button.active{ background:var(--ink); color:#fff; }
   #fileInput,#openInput{ display:none; }
 
+  .zoomRow{ display:flex; justify-content:center; align-items:center; gap:10px; padding:2px 16px 6px; }
+  .zoomBtn{
+    width:30px; height:30px; border-radius:50%; border:1.5px solid var(--ink); background:#fff;
+    font-size:17px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    color:var(--ink); user-select:none;
+  }
+  .zoomBtn:hover{ background:#f0f2f5; }
+  .zoomBtn:active{ background:#e2e5ea; }
+  .zoomLabel{ font-size:13px; min-width:50px; text-align:center; color:#333; cursor:pointer; user-select:none; }
+  .zoomLabel:hover{ text-decoration:underline; }
+  .zoomHint{ font-size:11.5px; color:var(--muted); }
+
   .paletteRow{ display:flex; justify-content:center; align-items:center; gap:6px; padding:12px 16px 4px; flex-wrap:wrap; }
   .swatch{ width:28px; height:24px; border-radius:3px; cursor:pointer; border:2px solid transparent; }
   .swatch.selected{ border-color:var(--ink); transform:scale(1.08); }
@@ -147,6 +159,13 @@
   <button id="btnReset">🗑️ Reset</button>
 </div>
 
+<div class="zoomRow" id="zoomRow">
+  <button class="zoomBtn" id="zoomOutBtn" title="කුඩා කරන්න (Zoom Out)">−</button>
+  <span class="zoomLabel" id="zoomLabel" title="100% වෙත reset කරන්න">100%</span>
+  <button class="zoomBtn" id="zoomInBtn" title="විශාල කරන්න (Zoom In)">+</button>
+  <span class="zoomHint">Ctrl + scroll වලින්ද zoom කළ හැක · zoom කළ පසු scroll කර පිටුවේ වෙනත් පැති බලන්න</span>
+</div>
+
 <div class="paletteRow" id="paletteRow"></div>
 
 <div class="patternRow" id="patternRow"></div>
@@ -155,7 +174,7 @@
   When you use <b>area tool</b>-<span class="step">Step1.</span> Select area tool <span class="step">Step 2.</span> select color <span class="step">Step3.</span> draw on map
 </div>
 
-<div class="stage">
+<div class="stage" id="stage">
   <div id="pageOuter">
     <div class="borderFrame"></div>
     <div class="mapTitle" id="mapTitle" contenteditable="false"></div>
@@ -202,13 +221,14 @@
   const paletteRow = document.getElementById('paletteRow');
   const fileInput = document.getElementById('fileInput');
   const openInput = document.getElementById('openInput');
+  const stageEl = document.getElementById('stage');
   const STORAGE_KEY = 'geosketch_project_v1';
 
   const BORDER = 20;      // mm - inset of the black rounded frame
   const ROW_TOP0 = 24;    // mm - first row's default top
   const ROW_STEP = 9;     // mm - vertical spacing between stacked rows
   const ROW_ANCHOR0 = BORDER + 4;  // mm - default distance from the page edge (kept inside the border frame)
-  const DOT_R = 1.0;      // mm - radius of the connector end-dot
+  const DOT_R = 0.8;      // mm - radius of the connector end-dot
 
   let orientation = 'portrait';
   let PAGE_W = 210, PAGE_H = 297;
@@ -260,6 +280,50 @@
     updateExtraColumns();
   }
   applyPageSize();
+
+  /* ---------------- ZOOM ----------------
+     Uses the CSS "zoom" property on #pageOuter (supported in all current
+     evergreen browsers). Unlike transform:scale(), zoom changes the element's
+     real layout size, so the surrounding .stage wrapper (overflow:auto)
+     naturally grows scrollbars once the zoomed page no longer fits the
+     screen - that's how panning to different sides of a zoomed page works.
+     All existing mm<->px math already reads pageOuter.getBoundingClientRect()
+     live, so it keeps working correctly at any zoom level with no other
+     changes needed. */
+  let zoomLevel = 1;
+  const ZOOM_MIN = 0.4, ZOOM_MAX = 3, ZOOM_STEP = 0.1;
+  const zoomLabelEl = document.getElementById('zoomLabel');
+
+  function applyZoom(anchorClientX, anchorClientY){
+    // try to keep whatever point is under the cursor (or the viewport
+    // center, if triggered from a button) visually in the same spot
+    const stageRect = stageEl.getBoundingClientRect();
+    const ax = anchorClientX!=null ? anchorClientX : stageRect.left + stageRect.width/2;
+    const ay = anchorClientY!=null ? anchorClientY : stageRect.top + stageRect.height/2;
+    const oldZoom = parseFloat(pageOuter.style.zoom) || 1;
+    const beforeX = stageEl.scrollLeft + (ax - stageRect.left);
+    const beforeY = stageEl.scrollTop + (ay - stageRect.top);
+    const ratio = zoomLevel / oldZoom;
+
+    pageOuter.style.zoom = zoomLevel;
+    zoomLabelEl.textContent = Math.round(zoomLevel*100)+'%';
+
+    stageEl.scrollLeft = beforeX*ratio - (ax - stageRect.left);
+    stageEl.scrollTop = beforeY*ratio - (ay - stageRect.top);
+    updatePxPerMm();
+  }
+  function zoomBy(step, clientX, clientY){
+    zoomLevel = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, +(zoomLevel+step).toFixed(2)));
+    applyZoom(clientX, clientY);
+  }
+  document.getElementById('zoomInBtn').addEventListener('click', function(){ zoomBy(ZOOM_STEP); });
+  document.getElementById('zoomOutBtn').addEventListener('click', function(){ zoomBy(-ZOOM_STEP); });
+  zoomLabelEl.addEventListener('click', function(){ zoomLevel = 1; applyZoom(); });
+  stageEl.addEventListener('wheel', function(e){
+    if (!(e.ctrlKey || e.metaKey)) return;
+    e.preventDefault();
+    zoomBy(e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP, e.clientX, e.clientY);
+  }, { passive:false });
 
   document.getElementById('btnRotate').addEventListener('click', function(){
     orientation = orientation === 'portrait' ? 'landscape' : 'portrait';
@@ -901,6 +965,7 @@
     orientation = 'portrait';
     PAGE_W = 210; PAGE_H = 297;
     applyPageSize();
+    zoomLevel = 1; applyZoom();
     state = { title:'', image:null, rows:{left:[],left2:[],right2:[],right:[]}, areas:[], connectors:[] };
     idCounter = 1;
     try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
