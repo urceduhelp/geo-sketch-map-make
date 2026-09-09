@@ -75,6 +75,8 @@
   .plusBox:hover{ background:#ffecec; }
   .plusLine{ position:absolute; top:20px; left:9px; width:1.4px; background:var(--red); }
   .colPlus.right .plusLine{ left:auto; right:9px; }
+  .colPlus.right2 .plusLine{ left:auto; right:9px; }
+  .colPlus.left2, .colPlus.right2{ display:none; }
 
   .labelRow{ position:absolute; display:inline-flex; align-items:stretch; gap:0; max-width:66mm; }
   .rowText{
@@ -159,6 +161,8 @@
     <div class="mapTitle" id="mapTitle" contenteditable="false"></div>
 
     <div class="colPlus left" id="plusLeft"><div class="plusBox">+</div><div class="plusLine"></div></div>
+    <div class="colPlus left2" id="plusLeft2"><div class="plusBox">+</div><div class="plusLine"></div></div>
+    <div class="colPlus right2" id="plusRight2"><div class="plusBox">+</div><div class="plusLine"></div></div>
     <div class="colPlus right" id="plusRight"><div class="plusBox">+</div><div class="plusLine"></div></div>
 
     <svg id="svgOverlay">
@@ -193,6 +197,8 @@
   const mapTitleEl = document.getElementById('mapTitle');
   const plusLeft = document.getElementById('plusLeft');
   const plusRight = document.getElementById('plusRight');
+  const plusLeft2 = document.getElementById('plusLeft2');
+  const plusRight2 = document.getElementById('plusRight2');
   const paletteRow = document.getElementById('paletteRow');
   const fileInput = document.getElementById('fileInput');
   const openInput = document.getElementById('openInput');
@@ -212,7 +218,7 @@
   let state = {
     title: '',                   // map title, shown above the border frame
     image: null,                 // {src,x,y,w,h,ratio}
-    rows: { left: [], right: [] }, // {id,side,top,anchor,text}
+    rows: { left: [], left2: [], right2: [], right: [] }, // {id,side,col,top,anchor,text}
     areas: [],                   // {id,points:[{x,y}],color,pattern}
     connectors: []                // {id,points:[{x,y}]}
   };
@@ -226,6 +232,24 @@
   function updatePxPerMm(){ pxPerMm = pageOuter.getBoundingClientRect().width / PAGE_W; }
   window.addEventListener('resize', updatePxPerMm);
 
+  /* landscape (rotated) canvases are wide enough to fit two label columns
+     per side, so a second "+" is added on the left and right - each with
+     its own small red square to start dashed connector lines into the map. */
+  function colAnchorMm(colId){
+    if (colId==='L1' || colId==='R1') return ROW_ANCHOR0;
+    const innerWidth = PAGE_W - 2*BORDER;
+    return BORDER + innerWidth*0.30;
+  }
+  function updateExtraColumns(){
+    const showExtra = orientation === 'landscape';
+    plusLeft2.style.display = showExtra ? 'block' : 'none';
+    plusRight2.style.display = showExtra ? 'block' : 'none';
+    if (showExtra){
+      plusLeft2.style.left = (colAnchorMm('L2')-2)+'mm';
+      plusRight2.style.right = (colAnchorMm('R2')-2)+'mm';
+    }
+  }
+
   function applyPageSize(){
     pageOuter.style.width = PAGE_W+'mm';
     pageOuter.style.height = PAGE_H+'mm';
@@ -233,6 +257,7 @@
     svgOverlay.setAttribute('width', PAGE_W+'mm');
     svgOverlay.setAttribute('height', PAGE_H+'mm');
     updatePxPerMm();
+    updateExtraColumns();
   }
   applyPageSize();
 
@@ -602,17 +627,34 @@
     });
   }
 
-  /* ---------------- LABEL ROWS (left / right stacked columns) ---------------- */
-  function addRow(side){
-    const arr = state.rows[side];
-    const row = { id: idCounter++, side, top: ROW_TOP0 + arr.length*ROW_STEP, anchor: ROW_ANCHOR0, text:'' };
+  /* ---------------- LABEL ROWS (left / right stacked columns) ----------------
+     Up to 4 physical column stacks: L1 (outer-left), L2 (inner-left, landscape
+     only), R2 (inner-right, landscape only), R1 (outer-right). L1/L2 both face
+     the map with the red square on their right; R2/R1 both face the map with
+     the red square on their left - so they reuse the same "left"/"right" CSS
+     classes as before, just stored in separate arrays so each column stacks
+     its own rows independently. */
+  const COLUMN_DEFS = {
+    L1: { side:'left',  rowsKey:'left'  },
+    L2: { side:'left',  rowsKey:'left2' },
+    R2: { side:'right', rowsKey:'right2' },
+    R1: { side:'right', rowsKey:'right' }
+  };
+  function legacyColFor(side){ return side==='left' ? 'L1' : 'R1'; }
+
+  function addRow(colId){
+    const def = COLUMN_DEFS[colId];
+    const arr = state.rows[def.rowsKey] || (state.rows[def.rowsKey] = []);
+    const row = { id: idCounter++, side: def.side, col: colId, top: ROW_TOP0 + arr.length*ROW_STEP, anchor: colAnchorMm(colId), text:'' };
     arr.push(row);
     buildRowEl(row);
     autoSave();
     return row;
   }
-  plusLeft.querySelector('.plusBox').addEventListener('click', ()=>addRow('left'));
-  plusRight.querySelector('.plusBox').addEventListener('click', ()=>addRow('right'));
+  plusLeft.querySelector('.plusBox').addEventListener('click', ()=>addRow('L1'));
+  plusRight.querySelector('.plusBox').addEventListener('click', ()=>addRow('R1'));
+  plusLeft2.querySelector('.plusBox').addEventListener('click', ()=>addRow('L2'));
+  plusRight2.querySelector('.plusBox').addEventListener('click', ()=>addRow('R2'));
 
   function buildRowEl(row){
     const wrap = document.createElement('div');
@@ -715,8 +757,10 @@
   }
 
   function removeRow(row){
-    const arr = state.rows[row.side];
-    state.rows[row.side] = arr.filter(r=>r.id!==row.id);
+    const colId = row.col || legacyColFor(row.side);
+    const rowsKey = (COLUMN_DEFS[colId] || {}).rowsKey || row.side;
+    const arr = state.rows[rowsKey] || [];
+    state.rows[rowsKey] = arr.filter(r=>r.id!==row.id);
     if (rowEls[row.id]){ rowEls[row.id].wrap.remove(); delete rowEls[row.id]; }
     autoSave();
   }
@@ -816,18 +860,22 @@
     orientation = data.orientation || 'portrait';
     PAGE_W = data.PAGE_W || 210; PAGE_H = data.PAGE_H || 297;
     applyPageSize();
-    state = { title: data.title || '', image:null, rows:{left:[],right:[]}, areas: data.areas||[], connectors: data.connectors||[] };
+    state = { title: data.title || '', image:null, rows:{left:[],left2:[],right2:[],right:[]}, areas: data.areas||[], connectors: data.connectors||[] };
     mapTitleEl.textContent = state.title;
     let maxId = 0;
-    (data.rows && data.rows.left || []).forEach(r=>{ state.rows.left.push(r); maxId=Math.max(maxId,r.id); });
-    (data.rows && data.rows.right || []).forEach(r=>{ state.rows.right.push(r); maxId=Math.max(maxId,r.id); });
+    ['left','left2','right2','right'].forEach(function(key){
+      (data.rows && data.rows[key] || []).forEach(function(r){
+        if (!r.col) r.col = legacyColFor(r.side); // older saves predate the extra columns
+        state.rows[key].push(r);
+        maxId = Math.max(maxId, r.id);
+      });
+    });
     state.areas.forEach(a=>maxId=Math.max(maxId,a.id));
     state.connectors.forEach(c=>maxId=Math.max(maxId,c.id));
     idCounter = maxId+1;
 
     if (data.image) loadImageFromDataUrl(data.image.src, {x:data.image.x,y:data.image.y,w:data.image.w,h:data.image.h});
-    state.rows.left.forEach(buildRowEl);
-    state.rows.right.forEach(buildRowEl);
+    ['left','left2','right2','right'].forEach(key => state.rows[key].forEach(buildRowEl));
     state.areas.forEach(buildAreaEl);
     state.connectors.forEach(buildConnectorEl);
   }
@@ -853,7 +901,7 @@
     orientation = 'portrait';
     PAGE_W = 210; PAGE_H = 297;
     applyPageSize();
-    state = { title:'', image:null, rows:{left:[],right:[]}, areas:[], connectors:[] };
+    state = { title:'', image:null, rows:{left:[],left2:[],right2:[],right:[]}, areas:[], connectors:[] };
     idCounter = 1;
     try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
   });
@@ -979,6 +1027,8 @@
           ctx.fillText(row.text, x+pad, y+h/2, w-2*pad);
         }
         state.rows.left.forEach(drawRow);
+        state.rows.left2.forEach(drawRow);
+        state.rows.right2.forEach(drawRow);
         state.rows.right.forEach(drawRow);
 
         // copyright credit, printed outside the border frame near the bottom edge
