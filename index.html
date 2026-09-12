@@ -296,7 +296,7 @@
   const DOT_R = 0.8;      // mm - radius of the connector end-dot (label-row connector tool)
 
   const TEXTLINE_STROKE = 1.2;         // mm - Text Tool line thickness
-  const TEXTLINE_END_R = TEXTLINE_STROKE * 1.0; // mm - end dot radius = 3x line thickness (diameter)
+  const TEXTLINE_END_R = TEXTLINE_STROKE * 1.5; // mm - end dot radius = 3x line thickness (diameter)
   const TEXT_DOT_R = 1.1;              // mm - Dot Tool marker radius
   const LONG_PRESS_MS = 550;
   const LONG_PRESS_MOVE_TOLERANCE = 6; // px
@@ -1860,12 +1860,73 @@
       '<title>How to use - EDUHELP-GeoSketch</title>' +
       '<style>' +
       'body{ margin:0; font-family:"Segoe UI","Noto Sans Sinhala",Arial,sans-serif; background:#e7e9ec; color:#1c1f26; }' +
-      '.wrap{ max-width:720px; margin:0 auto; padding:40px 24px 60px; }' +
-      'h1{ font-weight:400; font-size:28px; margin:0 0 18px; }' +
-      'p{ font-size:15px; line-height:1.7; }' +
+      '.wrap{ max-width:760px; margin:0 auto; padding:40px 24px 60px; }' +
+      'h1{ font-weight:400; font-size:28px; margin:0 0 22px; }' +
+      'h2{ font-weight:600; font-size:16px; margin:26px 0 6px; color:#28517d; }' +
+      'p{ font-size:15px; line-height:1.7; margin:6px 0; }' +
+      'ol.steps{ counter-reset:step; list-style:none; padding:0; margin:14px 0 0; }' +
+      'ol.steps > li{ position:relative; padding:2px 0 18px 46px; font-size:15.5px; line-height:1.7; }' +
+      'ol.steps > li:before{ counter-increment:step; content:counter(step); position:absolute; left:0; top:0; ' +
+      'width:30px; height:30px; border-radius:50%; background:#28517d; color:#fff; font-weight:700; ' +
+      'display:flex; align-items:center; justify-content:center; font-size:14px; }' +
+      'ul{ margin:6px 0; padding-left:20px; font-size:14.5px; line-height:1.7; }' +
+      '.tag{ display:inline-block; background:#eef1f5; border:1px solid #d8dbe0; border-radius:5px; padding:1px 7px; font-size:13.5px; }' +
+      '.note{ background:#fff7d6; border:1px solid #e9dd9a; border-radius:8px; padding:10px 14px; font-size:14px; margin:8px 0; }' +
       '</style></head><body>' +
-      '<div class="wrap"><h1>How to use</h1>' +
-      '<p>මෙය භාවිතයට අදාළ උපදෙස් පහතින් දැක්වේ.</p>' +
+      '<div class="wrap">' +
+      '<h1>භාවිතය සඳහා උපදෙස්</h1>' +
+
+      '<h2>ආරම්භයේදී කළ යුතු ප්‍රධාන පියවර දෙක</h2>' +
+      '<ol class="steps">' +
+        '<li><b>පළමුව කැන්වසය තෝරාගන්න.</b> ඔබේ සිතියම ලම්බකව (Portrait) හෝ තිරස්ව (Landscape) අඳින්නද කියා තීරණය කර, ' +
+        'එයට ගැලපෙන පිටුවක් ලබා ගැනීමට <span class="tag">🔄 Rotate Canvas</span> බොත්තම click/tap කරන්න. ' +
+        'අවශ්‍ය නම් පසුවත් මෙය click කර orientation එක වෙනස් කළ හැක.</li>' +
+        '<li><b>දෙවැනිව සිතියම තෝරා ගන්න.</b> <span class="tag">🗺️ Add map</span> click කර ඔබේ device එකේ ඇති සිතියමේ image ගොනුව ' +
+        '(jpg/png) තෝරන්න. එය කැන්වසය මතට ස්වයංක්‍රීයව ගැලපී පෙන්වයි. පසුව එය අවශ්‍ය ලෙස ඇදගෙන (drag) ස්ථානගත කළ හැක, ' +
+        'සහ දකුණු පහළ කෙළවරේ ඇති නිල් dot එකෙන් අදින්න (drag) ප්‍රමාණය වෙනස් කළ හැක.</li>' +
+      '</ol>' +
+
+      '<h2>සිතියම මාතෘකාව</h2>' +
+      '<p>සිතියම උඩ, border frame එකට ඉහළින් ඇති ස්ථානය click කර මාතෘකාව type කරන්න.</p>' +
+
+      '<h2>Legend / ලකුණු පේළි (side columns)</h2>' +
+      '<p>කැන්වසයේ දෙපැත්තේ ඇති <span class="tag">+</span> box එක click කිරීමෙන් නව ලකුණු පේළියක් (text box + රතු square එකක්) එකතු වේ.</p>' +
+      '<ul>' +
+        '<li>Text box එක click කර විස්තරය type කරන්න.</li>' +
+        '<li>Text box එක ඇදගෙන (drag) ස්ථානය මාරු කළ හැක.</li>' +
+        '<li>රතු square එක ඇදගෙන සිතියමේ අදාළ ස්ථානයට dashed රේඛාවක් ලෙස සම්බන්ධ කරන්න.</li>' +
+        '<li>Row එක mouse කරද්දි පෙන්වන × බොත්තමෙන් එය මකන්න.</li>' +
+      '</ul>' +
+
+      '<h2>◧ Area Tool</h2>' +
+      '<ol class="steps">' +
+        '<li>Area Tool තෝරන්න.</li>' +
+        '<li>ඉහළ ඇති පාට (color) සහ අවශ්‍ය නම් රටාව (pattern) තෝරන්න.</li>' +
+        '<li>සිතියම මතින් ඇඟිල්ල/mouse එක ඇද ප්‍රදේශය අඳින්න.</li>' +
+      '</ol>' +
+      '<p>Area tool එක මත ම යළි click කළ විට එයින් ඉවත් වියහැකි අතර ඉවත් පසු අඳින ලද ප්‍රදේශයක් click කර ඇදගෙන ස්ථානය මාරු කළ හැක, 🎨 බොත්තමෙන් නැවත වර්ණය/රටාව මාරු කළ හැක, ඒ සඳහා පළමුව අදාළ වර්ණය හෝ රටාව තෝරෙගෙන🎨 බොත්තම මත cilik කළ යුතු ය. × බොත්තමෙන් මකන්න.</p>' +
+
+      '<h2>📝 Text Tool</h2>' +
+      '<ol class="steps">' +
+        '<li>Text Tool තෝරන්න.</li>' +
+        '<li>සිතියම මතට tap කර නව text box එකක් එකතු කරන්න (✥ handle එකෙන් පසුව ඇදගෙන ස්ථානය මාරු කළ හැක).</li>' +
+        '<li>Text box එක ළඟ පෙන්වන කුඩා palette එකෙන්: ● Dot Tool එකෙන් ලක්ෂ්‍යයක් යොදන්න, ┃ Line Tool එකෙන් ' +
+        '(tap කර හැරවුම් යොදන්න, double-click කර dot එකක් සමඟ අවසන් කරන්න, දිගු press එකකින් dot එකක් නැතුව අවසන් කරන්න), ' +
+        'හෝ 〜 Freehand Tool එකෙන් නදියක් වැනි නිදහස් හැඩයක් අඳින්න.</li>' +
+      '</ol>' +
+
+      '<h2>Zoom සහ ස්ථානගත වීම (Pan)</h2>' +
+      '<p>ඉහළ ඇති − / + බොත්තම් වලින් හෝ Ctrl + scroll වලින් zoom කළ හැක. Area Tool හෝ Text Tool active කරගත් විට, ' +
+      'screen එකේ පහළ මැදින් ▼ ▲ ▶ ◀ arrow buttons සහ − / + zoom buttons සහිත pad එකක් පෙන්වයි - drawing mode එකේදී ' +
+      'සිතියම අවශ්‍ය තැනට පහසුවෙන් ගෙන යාමට එය භාවිත කරන්න.</p>' +
+
+      '<h2>💾 Save / 📂 Open</h2>' +
+      '<p>ඔබේ වැඩ .json ගොනුවක් ලෙස Save කර පසුව Open කර නැවත එයම load කර ගත හැක.</p>' +
+
+      '<h2>📄 Export</h2>' +
+      '<p>සම්පූර්ණ කළ පසු PDF හෝ JPG ලෙස export කර print/share කළ හැක.</p>' +
+
+      '<div class="note">🗑️ Reset බොත්තමෙන් සියලුම දත්ත මකා නැවත මුල සිට ආරම්භ කළ හැක - මෙය permanent බැවින් careful වන්න.</div>' +
       '</div></body></html>'
     );
     w.document.close();
