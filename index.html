@@ -403,7 +403,7 @@
      the canvas so drawing works precisely) ---------------- */
   const panPad = document.getElementById('panPad');
   function updatePanPadVisibility(){
-    const show = areaToolActive || textFreehandMode!=null;
+    const show = areaToolActive || textToolActive || textFreehandMode!=null;
     panPad.classList.toggle('show', show);
   }
   const PAN_STEP = 55; // px per tap / repeat tick
