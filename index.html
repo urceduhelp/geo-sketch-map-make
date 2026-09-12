@@ -117,18 +117,19 @@
   .labelRow.left .rowDelete{ right:-8px; left:auto; }
   .labelRow.right .rowDelete{ left:-8px; right:auto; }
 
-  .imageLayer{ position:absolute; cursor:grab; }
+  .imageLayer{ position:absolute; cursor:grab; touch-action:none; }
   .imageLayer:active{ cursor:grabbing; }
   .imageLayer img{ width:100%; height:100%; display:block; user-select:none; -webkit-user-drag:none; pointer-events:none; }
   .resizeHandle{
     position:absolute; width:16px; height:16px; right:-8px; bottom:-8px;
     background:var(--accent); border:2px solid #fff; border-radius:50%;
     cursor:nwse-resize; box-shadow:0 0 0 1px rgba(0,0,0,.2); z-index:4;
+    touch-action:none;
   }
 
   #svgOverlay{ position:absolute; top:0; left:0; pointer-events:none; }
-  .areaShape{ cursor:move; pointer-events:fill; }
-  .connectorHit{ cursor:move; pointer-events:stroke; }
+  .areaShape{ cursor:move; pointer-events:fill; touch-action:none; }
+  .connectorHit{ cursor:move; pointer-events:stroke; touch-action:none; }
   .connectorVisible, .connectorDot{ pointer-events:none; }
   .shapeDelete{
     position:absolute; width:17px; height:17px; border-radius:50%;
@@ -137,11 +138,62 @@
   }
   .shapeDelete.show{ display:block; }
 
-  #pageOuter.mode-area{ cursor:crosshair; }
-  #pageOuter.mode-connector{ cursor:default; }
+  #pageOuter.mode-area{ cursor:crosshair; touch-action:none; }
+  #pageOuter.mode-freehand{ cursor:crosshair; touch-action:none; }
+  #pageOuter.mode-connector{ cursor:default; touch-action:none; }
   #pageOuter.mode-connector *{ cursor:default; }
+  #pageOuter.mode-text{ cursor:text; }
 
   .footerRow{ text-align:center; padding:6px 0 30px; font-size:12px; color:#9aa0a8; }
+
+  /* ---- Pan Pad: shown on top of the page while Area Tool / Freehand Tool
+     is active, since those modes disable normal touch-scrolling inside the
+     canvas (touch-action:none) so the map can be drawn on precisely - this
+     gives a way to still move around the page on a phone/tablet. ---- */
+  .panPad{
+    position:fixed; left:50%; bottom:14px; transform:translateX(-50%); z-index:50;
+    display:none; gap:6px; background:rgba(255,255,255,.95); border:1px solid var(--line);
+    border-radius:12px; padding:6px; box-shadow:0 3px 12px rgba(0,0,0,.25);
+  }
+  .panPad.show{ display:flex; }
+  .panBtn{
+    width:36px; height:36px; border-radius:8px; border:1.5px solid var(--ink); background:#fff;
+    font-size:16px; display:flex; align-items:center; justify-content:center; cursor:pointer;
+    color:var(--ink); touch-action:none; user-select:none;
+  }
+  .panBtn:active{ background:#e2e5ea; }
+  .panDivider{ width:1px; align-self:stretch; background:var(--line); margin:2px 2px; }
+
+  /* ---- Text Tool: free-floating text box + mini dot/line palette ---- */
+  .freeTextWrap{ position:absolute; z-index:4; }
+  .freeTextWrap .rowText{ max-width:70mm; }
+  .freeTextWrap .rowDelete{ display:block; } /* always visible - hover doesn't work on touch */
+  .miniPalette{
+    position:absolute; bottom:100%; left:0; margin-bottom:5px;
+    display:flex; gap:6px; background:#fff; border:1.4px solid var(--line); border-radius:6px;
+    padding:4px 7px; box-shadow:0 2px 6px rgba(0,0,0,.18); z-index:5; touch-action:none;
+  }
+  .miniBtn{ width:26px; height:22px; display:flex; align-items:center; justify-content:center; cursor:pointer; border-radius:4px; }
+  .miniBtn:hover{ background:#f0f2f5; }
+  .miniBtn.active{ background:#e2e5ea; }
+  .miniDot{ width:8px; height:8px; border-radius:50%; background:var(--red); display:block; }
+  .miniLine{ width:3px; height:16px; background:var(--red); display:block; }
+  .miniFreehand{ display:block; }
+  .miniFreehand svg{ display:block; }
+
+  /* ---- move handle: lets a free-text box be click-and-dragged without
+     interfering with clicking into the text itself to type ---- */
+  .moveHandle{
+    position:absolute; left:-25px; top:50%; transform:translateY(-50%);
+    width:20px; height:20px; border-radius:50%; background:#fff;
+    border:1.4px solid var(--accent); color:var(--accent); font-size:12px;
+    display:flex; align-items:center; justify-content:center; cursor:move;
+    z-index:5; user-select:none; touch-action:none;
+  }
+  .moveHandle:hover{ background:#eaf1f8; }
+
+  /* ---- area shape recolor button (shown alongside delete once an area is selected) ---- */
+  .shapeRecolor{ transform:translate(-165%,-50%); font-size:13px; }
 </style>
 </head>
 <body>
@@ -153,10 +205,12 @@
   <button id="btnRotate">🔄 Rotate Canvas</button>
   <button id="btnSave">💾 Save</button>
   <label class="filebtn" id="btnOpen">📂 Open<input type="file" id="openInput" accept="application/json"></label>
+  <button id="btnTextTool">📝 Text Tool</button>
   <button id="btnAreaTool">◧ Area Tool</button>
   <button id="btnExportPdf">📄 EXPORT as PDF</button>
   <button id="btnExportJpg">🖼️ EXPORT as JPG</button>
   <button id="btnReset">🗑️ Reset</button>
+  <button id="btnHowTo">❓ How to use</button>
 </div>
 
 <div class="zoomRow" id="zoomRow">
@@ -171,7 +225,8 @@
 <div class="patternRow" id="patternRow"></div>
 
 <div class="hint">
-  When you use <b>area tool</b>-<span class="step">Step1.</span> Select area tool <span class="step">Step 2.</span> select color <span class="step">Step3.</span> draw on map
+  <b>Area tool</b>-<span class="step">Step1.</span> Select area tool <span class="step">Step 2.</span> select color <span class="step">Step3.</span> draw on map &nbsp;|&nbsp;
+  <b>Text tool</b>-<span class="step">Step1.</span> Select text tool <span class="step">Step2.</span> tap on map to add a text box (drag it later using its ✥ handle) <span class="step">Step3.</span> use its ● dot / ┃ line / 〜 freehand buttons to mark, connect or draw a shape - for the line tool: tap to turn, double-click to finish with a dot, long-press to finish without one
 </div>
 
 <div class="stage" id="stage">
@@ -208,6 +263,16 @@
 
 <div class="footerRow">www.eduhelp.lk &nbsp;|&nbsp; geosketch-2026</div>
 
+<div class="panPad" id="panPad">
+  <button class="panBtn" id="panDown" title="පහළට">▼</button>
+  <button class="panBtn" id="panUp" title="ඉහළට">▲</button>
+  <button class="panBtn" id="panRight" title="දකුණට">▶</button>
+  <button class="panBtn" id="panLeft" title="වමට">◀</button>
+  <span class="panDivider"></span>
+  <button class="panBtn" id="panZoomOut" title="කුඩා කරන්න (Zoom Out)">−</button>
+  <button class="panBtn" id="panZoomIn" title="විශාල කරන්න (Zoom In)">+</button>
+</div>
+
 <script>
 (function(){
   const SVGNS = 'http://www.w3.org/2000/svg';
@@ -228,7 +293,13 @@
   const ROW_TOP0 = 24;    // mm - first row's default top
   const ROW_STEP = 9;     // mm - vertical spacing between stacked rows
   const ROW_ANCHOR0 = BORDER + 4;  // mm - default distance from the page edge (kept inside the border frame)
-  const DOT_R = 0.8;      // mm - radius of the connector end-dot
+  const DOT_R = 0.8;      // mm - radius of the connector end-dot (label-row connector tool)
+
+  const TEXTLINE_STROKE = 1.2;         // mm - Text Tool line thickness
+  const TEXTLINE_END_R = TEXTLINE_STROKE * 1.5; // mm - end dot radius = 3x line thickness (diameter)
+  const TEXT_DOT_R = 1.1;              // mm - Dot Tool marker radius
+  const LONG_PRESS_MS = 550;
+  const LONG_PRESS_MOVE_TOLERANCE = 6; // px
 
   let orientation = 'portrait';
   let PAGE_W = 210, PAGE_H = 297;
@@ -240,12 +311,14 @@
     image: null,                 // {src,x,y,w,h,ratio}
     rows: { left: [], left2: [], right2: [], right: [] }, // {id,side,col,top,anchor,text}
     areas: [],                   // {id,points:[{x,y}],color,pattern}
-    connectors: []                // {id,points:[{x,y}]}
+    connectors: [],               // {id,points:[{x,y}]}
+    freeTexts: []                 // {id,x,y,text,dot:{x,y}|null,connector:{points:[...]}|null}
   };
 
   const rowEls = {};        // id -> {wrap, textEl, delBtn}
-  const areaEls = {};       // id -> {poly, delBtn}
+  const areaEls = {};       // id -> {poly, patPoly, delBtn, recolorBtn}
   const connectorEls = {};  // id -> {hit, visible, dot, delBtn}
+  const freeTextEls = {};   // id -> {wrap, textEl, delBtn, palette, dotBtn, lineBtn, dotEl, connVisible, connDot}
 
   let imgLayerEl = null;
 
@@ -325,6 +398,48 @@
     zoomBy(e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP, e.clientX, e.clientY);
   }, { passive:false });
 
+  /* ---------------- PAN PAD (mobile: pan the page while Area Tool / Freehand
+     Tool is active, since those modes turn off normal touch-scroll inside
+     the canvas so drawing works precisely) ---------------- */
+  const panPad = document.getElementById('panPad');
+  function updatePanPadVisibility(){
+    const show = areaToolActive || textFreehandMode!=null;
+    panPad.classList.toggle('show', show);
+  }
+  const PAN_STEP = 55; // px per tap / repeat tick
+  function panStage(dx, dy){
+    // Horizontal overflow is contained *inside* #stage (it has overflow:auto
+    // and a width bounded by the viewport), so left/right must scroll
+    // stageEl itself. Vertical overflow is NOT contained inside #stage -
+    // .stage has no height limit, so it simply grows tall enough to fit the
+    // whole page, and it's the actual browser window/document that scrolls
+    // up and down past it. So up/down must scroll the window instead -
+    // scrolling stageEl.scrollTop has no effect since it never overflows.
+    if (dx) stageEl.scrollLeft += dx;
+    if (dy) window.scrollBy(0, dy);
+  }
+  function wirePanBtn(id, dx, dy){
+    const btn = document.getElementById(id);
+    let iv = null;
+    function start(e){
+      e.preventDefault(); e.stopPropagation();
+      panStage(dx,dy);
+      if (iv) clearInterval(iv);
+      iv = setInterval(function(){ panStage(dx,dy); }, 90);
+    }
+    function stop(){ if (iv){ clearInterval(iv); iv=null; } }
+    btn.addEventListener('pointerdown', start);
+    btn.addEventListener('pointerup', stop);
+    btn.addEventListener('pointerleave', stop);
+    btn.addEventListener('pointercancel', stop);
+  }
+  wirePanBtn('panDown', 0, PAN_STEP);
+  wirePanBtn('panUp', 0, -PAN_STEP);
+  wirePanBtn('panRight', PAN_STEP, 0);
+  wirePanBtn('panLeft', -PAN_STEP, 0);
+  document.getElementById('panZoomOut').addEventListener('click', function(){ zoomBy(-ZOOM_STEP); });
+  document.getElementById('panZoomIn').addEventListener('click', function(){ zoomBy(ZOOM_STEP); });
+
   document.getElementById('btnRotate').addEventListener('click', function(){
     orientation = orientation === 'portrait' ? 'landscape' : 'portrait';
     const w=PAGE_W, h=PAGE_H; PAGE_W=h; PAGE_H=w;
@@ -402,6 +517,24 @@
     return 'rgba('+r+','+g+','+b+','+a+')';
   }
 
+  /* ================================================================
+     SHAPE SELECTION (shared by areas & connectors: shows delete /
+     recolor buttons for whichever shape was last clicked)
+     ================================================================ */
+  function selectShape(id, buttons){
+    document.querySelectorAll('.shapeDelete.show').forEach(b=>b.classList.remove('show'));
+    buttons.forEach(b=>b.classList.add('show'));
+  }
+  function isBackgroundTarget(target){
+    return target === pageOuter || target === svgOverlay || target.classList.contains('borderFrame') ||
+           (imgLayerEl && (target === imgLayerEl || imgLayerEl.contains(target) && !target.classList.contains('resizeHandle')));
+  }
+  pageOuter.addEventListener('mousedown', function(e){
+    if (isBackgroundTarget(e.target)){
+      document.querySelectorAll('.shapeDelete.show').forEach(b=>b.classList.remove('show'));
+    }
+  });
+
   /* ---------------- AREA TOOL (free-form filled shapes) ---------------- */
   let areaToolActive = false;
   const btnAreaTool = document.getElementById('btnAreaTool');
@@ -409,16 +542,22 @@
     areaToolActive = !areaToolActive;
     btnAreaTool.classList.toggle('active', areaToolActive);
     pageOuter.classList.toggle('mode-area', areaToolActive);
+    if (areaToolActive){
+      textToolActive = false; btnTextTool.classList.remove('active'); pageOuter.classList.remove('mode-text');
+      cancelTextLineDrawing(); textDotMode = null;
+      textFreehandMode = null; pageOuter.classList.remove('mode-freehand');
+    }
+    updatePanPadVisibility();
   });
 
-  function isBackgroundTarget(target){
-    return target === pageOuter || target === svgOverlay || target.classList.contains('borderFrame') ||
-           (imgLayerEl && (target === imgLayerEl || imgLayerEl.contains(target) && !target.classList.contains('resizeHandle')));
-  }
-
-  pageOuter.addEventListener('mousedown', function(e){
-    if (!areaToolActive || drawingConnector) return;
+  /* Uses Pointer Events (not mouse-only events) so the Area Tool works
+     correctly with touch input on phones/tablets and on interactive
+     smart-boards, not just with a mouse. */
+  pageOuter.addEventListener('pointerdown', function(e){
+    if (!areaToolActive || drawingConnector || textDotMode!=null || textLineMode!=null || textLineDrawing || textFreehandMode!=null) return;
     if (e.target.classList.contains('resizeHandle')) return;
+    e.preventDefault();
+    try{ pageOuter.setPointerCapture(e.pointerId); }catch(err){}
     updatePxPerMm();
     const rect = pageOuter.getBoundingClientRect();
     const start = { x:(e.clientX-rect.left)/pxPerMm, y:(e.clientY-rect.top)/pxPerMm };
@@ -436,8 +575,9 @@
       poly.setAttribute('points', points.map(p=>p.x+','+p.y).join(' '));
     }
     function onUp(){
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
+      pageOuter.removeEventListener('pointermove', onMove);
+      pageOuter.removeEventListener('pointerup', onUp);
+      pageOuter.removeEventListener('pointercancel', onUp);
       poly.remove();
       if (points.length >= 3){
         const item = { id: idCounter++, type:'area', points, color: currentAreaColor, pattern: currentAreaPattern };
@@ -446,8 +586,9 @@
         autoSave();
       }
     }
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    pageOuter.addEventListener('pointermove', onMove);
+    pageOuter.addEventListener('pointerup', onUp);
+    pageOuter.addEventListener('pointercancel', onUp);
   });
 
   function buildAreaEl(item){
@@ -464,13 +605,20 @@
     delBtn.className = 'shapeDelete';
     delBtn.textContent = '×';
     pageOuter.appendChild(delBtn);
-    areaEls[item.id] = { poly, patPoly, delBtn };
+
+    const recolorBtn = document.createElement('div');
+    recolorBtn.className = 'shapeDelete shapeRecolor';
+    recolorBtn.textContent = '🎨';
+    recolorBtn.title = 'තෝරාගත් වර්ණය මෙම areaවලට යොදන්න';
+    pageOuter.appendChild(recolorBtn);
+
+    areaEls[item.id] = { poly, patPoly, delBtn, recolorBtn };
     applyAreaStyle(item);
 
-    poly.addEventListener('mousedown', function(e){
-      if (areaToolActive || drawingConnector) return;
+    poly.addEventListener('pointerdown', function(e){
+      if (areaToolActive || drawingConnector || textDotMode!=null || textLineMode!=null || textLineDrawing) return;
       e.stopPropagation();
-      selectShape(item.id, delBtn);
+      selectShape(item.id, [delBtn, recolorBtn]);
       const startPts = item.points.map(p=>({x:p.x,y:p.y}));
       const startX=e.clientX, startY=e.clientY;
       function onMove(ev){
@@ -479,51 +627,63 @@
         applyAreaStyle(item);
       }
       function onUp(){
-        document.removeEventListener('mousemove',onMove);
-        document.removeEventListener('mouseup',onUp);
+        document.removeEventListener('pointermove',onMove);
+        document.removeEventListener('pointerup',onUp);
         autoSave();
       }
-      document.addEventListener('mousemove',onMove);
-      document.addEventListener('mouseup',onUp);
+      document.addEventListener('pointermove',onMove);
+      document.addEventListener('pointerup',onUp);
     });
-    delBtn.addEventListener('mousedown', e=>e.stopPropagation());
+    delBtn.addEventListener('pointerdown', e=>e.stopPropagation());
     delBtn.addEventListener('click', function(e){ e.stopPropagation(); removeArea(item.id); });
+
+    recolorBtn.addEventListener('pointerdown', e=>e.stopPropagation());
+    recolorBtn.addEventListener('click', function(e){
+      e.stopPropagation();
+      // re-colors (and re-patterns) this already-drawn area using whatever
+      // is currently selected in the top color palette / pattern row
+      item.color = currentAreaColor;
+      item.pattern = currentAreaPattern;
+      applyAreaStyle(item);
+      autoSave();
+    });
   }
   function applyAreaStyle(item){
     const refs = areaEls[item.id]; if(!refs) return;
     const ptsStr = item.points.map(p=>p.x+','+p.y).join(' ');
     refs.poly.setAttribute('points', ptsStr);
     refs.poly.setAttribute('fill', hexToRgba(item.color,0.55));
+    if (item.pattern && item.pattern!=='none' && !refs.patPoly){
+      refs.patPoly = document.createElementNS(SVGNS,'polygon');
+      refs.patPoly.style.pointerEvents = 'none';
+      svgOverlay.appendChild(refs.patPoly);
+    }
     if (refs.patPoly){
       refs.patPoly.setAttribute('points', ptsStr);
       refs.patPoly.setAttribute('fill', item.pattern && item.pattern!=='none' ? 'url(#pat-'+item.pattern+')' : 'none');
     }
     let sx=0,sy=0; item.points.forEach(p=>{sx+=p.x;sy+=p.y;});
-    refs.delBtn.style.left = (sx/item.points.length)+'mm';
-    refs.delBtn.style.top = (sy/item.points.length)+'mm';
+    const cx = sx/item.points.length, cy = sy/item.points.length;
+    refs.delBtn.style.left = cx+'mm';
+    refs.delBtn.style.top = cy+'mm';
+    refs.recolorBtn.style.left = cx+'mm';
+    refs.recolorBtn.style.top = cy+'mm';
   }
   function removeArea(id){
     state.areas = state.areas.filter(a=>a.id!==id);
-    if (areaEls[id]){ areaEls[id].poly.remove(); if(areaEls[id].patPoly) areaEls[id].patPoly.remove(); areaEls[id].delBtn.remove(); delete areaEls[id]; }
+    if (areaEls[id]){
+      areaEls[id].poly.remove();
+      if(areaEls[id].patPoly) areaEls[id].patPoly.remove();
+      areaEls[id].delBtn.remove();
+      areaEls[id].recolorBtn.remove();
+      delete areaEls[id];
+    }
     autoSave();
   }
 
-  let selectedShapeDelBtn = null;
-  function selectShape(id, delBtn){
-    document.querySelectorAll('.shapeDelete.show').forEach(b=>b.classList.remove('show'));
-    delBtn.classList.add('show');
-    selectedShapeDelBtn = delBtn;
-  }
-  pageOuter.addEventListener('mousedown', function(e){
-    if (isBackgroundTarget(e.target)){
-      document.querySelectorAll('.shapeDelete.show').forEach(b=>b.classList.remove('show'));
-    }
-  });
-
-  /* ---------------- CONNECTOR TOOL (orthogonal dashed line + end dot) ---------------- */
+  /* ---------------- CONNECTOR TOOL (label-row squares: orthogonal dashed line + end dot) ---------------- */
   let drawingConnector = null; // {points:[{x,y}]}
   let previewPoly = null;
-  let clickTimer = null;
 
   function snapOrtho(last, cur){
     const dx = cur.x-last.x, dy = cur.y-last.y;
@@ -576,12 +736,16 @@
     finalizeConnector();
   });
   document.addEventListener('keydown', function(e){
-    if (e.key === 'Escape' && drawingConnector){
-      if (clickTimer){ clearTimeout(clickTimer); clickTimer=null; }
+    if (e.key !== 'Escape') return;
+    if (drawingConnector){
       if (previewPoly) previewPoly.remove();
       drawingConnector = null; lastSnap = null;
       pageOuter.classList.remove('mode-connector');
     }
+    if (textLineDrawing || textLineMode){ cancelTextLineDrawing(); }
+    if (textDotMode!=null){ textDotMode = null; }
+    if (textFreehandMode!=null){ textFreehandMode = null; pageOuter.classList.remove('mode-freehand'); }
+    updatePanPadVisibility();
   });
   function finalizeConnector(){
     if (previewPoly) previewPoly.remove();
@@ -617,7 +781,7 @@
     hit.addEventListener('mousedown', function(e){
       if (drawingConnector || areaToolActive) return;
       e.stopPropagation();
-      selectShape(item.id, delBtn);
+      selectShape(item.id, [delBtn]);
       const startPts = item.points.map(p=>({x:p.x,y:p.y}));
       const startX=e.clientX, startY=e.clientY;
       function onMove(ev){
@@ -655,6 +819,460 @@
     autoSave();
   }
 
+  /* ================================================================
+     TEXT TOOL
+     - "📝 Text Tool" toggled on: tapping anywhere on the map opens a new
+       text box (placeholder "add text") that you can type into.
+     - The moment a text box appears, a small palette with a Dot Tool (●)
+       and a Line Tool (┃) opens right above it.
+       - Dot Tool: next tap on the map places a black dot there.
+       - Line Tool: click the starting point, each further single tap adds
+         a 90°-snapped turn, and a long-press/long-click finishes the line
+         - the line finishes with a dot 3x the line's thickness.
+     ================================================================ */
+  let textToolActive = false;
+  const btnTextTool = document.getElementById('btnTextTool');
+  btnTextTool.addEventListener('click', function(){
+    textToolActive = !textToolActive;
+    btnTextTool.classList.toggle('active', textToolActive);
+    pageOuter.classList.toggle('mode-text', textToolActive);
+    if (textToolActive){
+      areaToolActive = false; btnAreaTool.classList.remove('active'); pageOuter.classList.remove('mode-area');
+      cancelTextLineDrawing(); textDotMode = null;
+      textFreehandMode = null; pageOuter.classList.remove('mode-freehand');
+    }
+    updatePanPadVisibility();
+  });
+
+  let textDotMode = null;      // freeText id waiting for a dot placement tap
+  let textLineMode = null;     // freeText id waiting for the line's first tap
+  let textLineDrawing = null;  // {itemId, points:[...]} - actively being drawn
+  let textLinePreview = null;
+  let textLineLastSnap = null;
+  let longPressTimer = null;
+  let textLineLastClickTime = 0;   // used to detect a double-click finishing the line
+  let textLineLastClickPos = null;
+  const DBLCLICK_MS = 350;
+  const DBLCLICK_DIST_PX = 8;
+  let textFreehandMode = null; // freeText id waiting for a freehand stroke to be drawn
+
+  function startTextDotMode(itemId){
+    cancelTextLineDrawing();
+    areaToolActive = false; btnAreaTool.classList.remove('active'); pageOuter.classList.remove('mode-area');
+    textToolActive = false; btnTextTool.classList.remove('active'); pageOuter.classList.remove('mode-text');
+    textFreehandMode = null; pageOuter.classList.remove('mode-freehand');
+    textDotMode = itemId;
+    updatePanPadVisibility();
+  }
+  function startTextLineMode(itemId){
+    cancelTextLineDrawing();
+    areaToolActive = false; btnAreaTool.classList.remove('active'); pageOuter.classList.remove('mode-area');
+    textToolActive = false; btnTextTool.classList.remove('active'); pageOuter.classList.remove('mode-text');
+    textFreehandMode = null; pageOuter.classList.remove('mode-freehand');
+    textDotMode = null;
+    textLineMode = itemId;
+    textLineLastClickTime = 0; textLineLastClickPos = null;
+    pageOuter.classList.add('mode-connector');
+    updatePanPadVisibility();
+  }
+  function startTextFreehandMode(itemId){
+    cancelTextLineDrawing();
+    areaToolActive = false; btnAreaTool.classList.remove('active'); pageOuter.classList.remove('mode-area');
+    textToolActive = false; btnTextTool.classList.remove('active'); pageOuter.classList.remove('mode-text');
+    textDotMode = null;
+    textFreehandMode = itemId;
+    pageOuter.classList.add('mode-freehand');
+    updatePanPadVisibility();
+  }
+  function cancelTextLineDrawing(){
+    if (textLinePreview){ textLinePreview.remove(); textLinePreview=null; }
+    if (longPressTimer){ clearTimeout(longPressTimer); longPressTimer=null; }
+    textLineMode = null;
+    textLineDrawing = null;
+    textLineLastSnap = null;
+    textLineLastClickTime = 0; textLineLastClickPos = null;
+    pageOuter.classList.remove('mode-connector');
+  }
+  function finalizeTextLine(withDot){
+    if (textLinePreview){ textLinePreview.remove(); textLinePreview=null; }
+    const drawing = textLineDrawing;
+    textLineDrawing = null;
+    textLineLastClickTime = 0; textLineLastClickPos = null;
+    pageOuter.classList.remove('mode-connector');
+    if (!drawing || drawing.points.length < 2) return;
+    const item = state.freeTexts.find(f=>f.id===drawing.itemId);
+    if (!item) return;
+    item.connector = { points: drawing.points, dot: !!withDot };
+    renderFreeTextConnector(item);
+    autoSave();
+  }
+
+  // 1) create a new free text box wherever the map is tapped, while Text Tool is active
+  pageOuter.addEventListener('pointerdown', function(e){
+    if (!textToolActive) return;
+    if (drawingConnector || textLineDrawing || textLineMode!=null || textDotMode!=null || textFreehandMode!=null) return;
+    if (!isBackgroundTarget(e.target)) return;
+    e.preventDefault();
+    updatePxPerMm();
+    const rect = pageOuter.getBoundingClientRect();
+    const pt = { x:(e.clientX-rect.left)/pxPerMm, y:(e.clientY-rect.top)/pxPerMm };
+    const item = { id: idCounter++, x: pt.x, y: pt.y, text:'', dot:null, connector:null };
+    state.freeTexts.push(item);
+    buildFreeTextEl(item);
+    autoSave();
+    const refs = freeTextEls[item.id];
+    if (refs) enterRowEdit(refs.textEl, item);
+  });
+
+  // 2) Dot Tool: next tap on the map places a black dot for the armed item
+  pageOuter.addEventListener('pointerdown', function(e){
+    if (textDotMode==null) return;
+    if (e.target.closest && e.target.closest('.miniPalette')) return;
+    e.preventDefault();
+    updatePxPerMm();
+    const rect = pageOuter.getBoundingClientRect();
+    const pt = { x:(e.clientX-rect.left)/pxPerMm, y:(e.clientY-rect.top)/pxPerMm };
+    const item = state.freeTexts.find(f=>f.id===textDotMode);
+    if (item){ item.dot = pt; renderFreeTextDot(item); autoSave(); }
+    textDotMode = null;
+  });
+
+  // 3) Line Tool:
+  //    - first single click starts the line
+  //    - any further single click adds a 90°-snapped turn (bending toward
+  //      that click's position)
+  //    - a long-press/long-click finishes the line WITHOUT an end dot
+  //    - a double-click finishes the line WITH an end dot
+  function distPx(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+  pageOuter.addEventListener('pointerdown', function(e){
+    if (textLineMode==null && textLineDrawing==null) return;
+    if (e.target.closest && e.target.closest('.miniPalette')) return;
+    if (areaToolActive) return;
+    e.preventDefault();
+    updatePxPerMm();
+    const rect = pageOuter.getBoundingClientRect();
+    const pt = { x:(e.clientX-rect.left)/pxPerMm, y:(e.clientY-rect.top)/pxPerMm };
+
+    if (textLineDrawing==null){
+      // first click: start the line
+      textLineDrawing = { itemId: textLineMode, points: [pt] };
+      textLineMode = null;
+      textLineLastClickTime = 0; textLineLastClickPos = null;
+      textLinePreview = document.createElementNS(SVGNS,'polyline');
+      textLinePreview.setAttribute('fill','none');
+      textLinePreview.setAttribute('stroke','#000');
+      textLinePreview.setAttribute('stroke-width', TEXTLINE_STROKE);
+      textLinePreview.setAttribute('stroke-linecap','round');
+      textLinePreview.setAttribute('stroke-dasharray','0.1,1.6');
+      textLinePreview.setAttribute('points', pt.x+','+pt.y);
+      svgOverlay.appendChild(textLinePreview);
+      return;
+    }
+
+    // subsequent clicks: a short tap adds a 90°-snapped turn point (or, if
+    // it lands as the second click of a double-click, finishes the line
+    // WITH an end dot); a long-press (hold without moving) finishes the
+    // line WITHOUT an end dot.
+    const last = textLineDrawing.points[textLineDrawing.points.length-1];
+    textLineLastSnap = snapOrtho(last, pt);
+    let longPressFired = false;
+    const startClientX = e.clientX, startClientY = e.clientY;
+
+    function onMove(ev){
+      if (Math.hypot(ev.clientX-startClientX, ev.clientY-startClientY) > LONG_PRESS_MOVE_TOLERANCE){
+        if (longPressTimer){ clearTimeout(longPressTimer); longPressTimer=null; }
+      }
+      const curPt = { x:(ev.clientX-rect.left)/pxPerMm, y:(ev.clientY-rect.top)/pxPerMm };
+      textLineLastSnap = snapOrtho(last, curPt);
+      const pts = textLineDrawing.points.concat([textLineLastSnap]);
+      textLinePreview.setAttribute('points', pts.map(p=>p.x+','+p.y).join(' '));
+    }
+    function onUp(ev){
+      pageOuter.removeEventListener('pointermove', onMove);
+      pageOuter.removeEventListener('pointerup', onUp);
+      pageOuter.removeEventListener('pointercancel', onUp);
+      if (longPressTimer){ clearTimeout(longPressTimer); longPressTimer=null; }
+      if (longPressFired) return;
+
+      const upTime = Date.now();
+      const clickPos = { x: ev.clientX, y: ev.clientY };
+      const isDoubleClick = textLineLastClickPos!=null &&
+        (upTime - textLineLastClickTime) < DBLCLICK_MS &&
+        distPx(clickPos, textLineLastClickPos) < DBLCLICK_DIST_PX;
+
+      if (isDoubleClick){
+        // second click of a double-click: drop the provisional turn point
+        // that the first click of the pair added, then finish the line
+        // here, WITH an end dot
+        if (textLineDrawing.points.length > 1) textLineDrawing.points.pop();
+        textLineDrawing.points.push(textLineLastSnap);
+        finalizeTextLine(true);
+        return;
+      }
+
+      // normal single click: add a turn point and keep drawing
+      textLineDrawing.points.push(textLineLastSnap);
+      textLinePreview.setAttribute('points', textLineDrawing.points.map(p=>p.x+','+p.y).join(' '));
+      textLineLastClickTime = upTime;
+      textLineLastClickPos = clickPos;
+    }
+    function fireLongPress(){
+      longPressFired = true;
+      pageOuter.removeEventListener('pointermove', onMove);
+      pageOuter.removeEventListener('pointerup', onUp);
+      pageOuter.removeEventListener('pointercancel', onUp);
+      textLineDrawing.points.push(textLineLastSnap);
+      finalizeTextLine(false);
+    }
+    longPressTimer = setTimeout(fireLongPress, LONG_PRESS_MS);
+    pageOuter.addEventListener('pointermove', onMove);
+    pageOuter.addEventListener('pointerup', onUp);
+    pageOuter.addEventListener('pointercancel', onUp);
+  });
+
+  // 4) Freehand Tool: press-drag-release to draw a free-form stroke (e.g. a
+  //    river outline) on the map for the armed free text item
+  pageOuter.addEventListener('pointerdown', function(e){
+    if (textFreehandMode==null) return;
+    if (e.target.closest && e.target.closest('.miniPalette')) return;
+    e.preventDefault();
+    try{ pageOuter.setPointerCapture(e.pointerId); }catch(err){}
+    updatePxPerMm();
+    const rect = pageOuter.getBoundingClientRect();
+    const start = { x:(e.clientX-rect.left)/pxPerMm, y:(e.clientY-rect.top)/pxPerMm };
+    const points = [start];
+    const itemId = textFreehandMode;
+    textFreehandMode = null;
+    pageOuter.classList.remove('mode-freehand');
+    updatePanPadVisibility();
+
+    const poly = document.createElementNS(SVGNS,'polyline');
+    poly.setAttribute('fill','none');
+    poly.setAttribute('stroke','#000');
+    poly.setAttribute('stroke-width', TEXTLINE_STROKE);
+    poly.setAttribute('stroke-linecap','round');
+    poly.setAttribute('stroke-linejoin','round');
+    poly.setAttribute('points', start.x+','+start.y);
+    svgOverlay.appendChild(poly);
+
+    function onMove(ev){
+      const x=(ev.clientX-rect.left)/pxPerMm, y=(ev.clientY-rect.top)/pxPerMm;
+      const last = points[points.length-1];
+      if (Math.hypot(x-last.x,y-last.y) < 0.6) return;
+      points.push({x,y});
+      poly.setAttribute('points', points.map(p=>p.x+','+p.y).join(' '));
+    }
+    function onUp(){
+      pageOuter.removeEventListener('pointermove', onMove);
+      pageOuter.removeEventListener('pointerup', onUp);
+      pageOuter.removeEventListener('pointercancel', onUp);
+      poly.remove();
+      if (points.length >= 2){
+        const item = state.freeTexts.find(f=>f.id===itemId);
+        if (item){
+          if (!item.freehands) item.freehands = [];
+          item.freehands.push({ id: idCounter++, points });
+          renderFreeTextFreehands(item);
+          autoSave();
+        }
+      }
+    }
+    pageOuter.addEventListener('pointermove', onMove);
+    pageOuter.addEventListener('pointerup', onUp);
+    pageOuter.addEventListener('pointercancel', onUp);
+  });
+
+  function buildFreeTextEl(item){
+    const wrap = document.createElement('div');
+    wrap.className = 'freeTextWrap';
+    wrap.style.left = item.x+'mm';
+    wrap.style.top = item.y+'mm';
+
+    const palette = document.createElement('div');
+    palette.className = 'miniPalette';
+
+    const dotBtn = document.createElement('div');
+    dotBtn.className = 'miniBtn miniDotBtn';
+    dotBtn.title = 'Dot Tool';
+    dotBtn.innerHTML = '<span class="miniDot"></span>';
+
+    const lineBtn = document.createElement('div');
+    lineBtn.className = 'miniBtn miniLineBtn';
+    lineBtn.title = 'Line Tool';
+    lineBtn.innerHTML = '<span class="miniLine"></span>';
+
+    const freehandBtn = document.createElement('div');
+    freehandBtn.className = 'miniBtn miniFreehandBtn';
+    freehandBtn.title = 'Freehand Tool (e.g. draw a river shape)';
+    freehandBtn.innerHTML = '<span class="miniFreehand"><svg viewBox="0 0 18 14" width="18" height="14"><path d="M1,10 Q4,2 7,8 T13,6 T17,10" stroke="#e21b1b" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg></span>';
+
+    palette.appendChild(dotBtn);
+    palette.appendChild(lineBtn);
+    palette.appendChild(freehandBtn);
+
+    const moveHandle = document.createElement('div');
+    moveHandle.className = 'moveHandle';
+    moveHandle.title = 'ස්ථානය මාරු කරන්න (Move)';
+    moveHandle.textContent = '✥';
+
+    const textEl = document.createElement('div');
+    textEl.className = 'rowText';
+    textEl.contentEditable = 'false';
+    textEl.textContent = item.text;
+    if (item.text) textEl.classList.add('filled');
+
+    const delBtn = document.createElement('div');
+    delBtn.className = 'rowDelete';
+    delBtn.textContent = '×';
+    delBtn.style.left = 'auto'; delBtn.style.right = '-8px';
+
+    wrap.appendChild(palette);
+    wrap.appendChild(moveHandle);
+    wrap.appendChild(textEl);
+    wrap.appendChild(delBtn);
+    pageOuter.appendChild(wrap);
+    freeTextEls[item.id] = { wrap, textEl, delBtn, palette, dotBtn, lineBtn, freehandBtn, moveHandle, dotEl:null, connVisible:null, connDot:null, freehandEls:[] };
+
+    // dedicated move handle: press-drag anywhere on this icon to reposition
+    // the text box without touching (or entering edit mode on) the text
+    moveHandle.addEventListener('pointerdown', function(e){
+      e.stopPropagation();
+      e.preventDefault();
+      try{ moveHandle.setPointerCapture(e.pointerId); }catch(err){}
+      updatePxPerMm();
+      const startClientX=e.clientX, startClientY=e.clientY;
+      const startX=item.x, startY=item.y;
+      function onMove(ev){
+        const dxMm=(ev.clientX-startClientX)/pxPerMm, dyMm=(ev.clientY-startClientY)/pxPerMm;
+        item.x = startX+dxMm; item.y = startY+dyMm;
+        wrap.style.left = item.x+'mm'; wrap.style.top = item.y+'mm';
+      }
+      function onUp(){
+        moveHandle.removeEventListener('pointermove', onMove);
+        moveHandle.removeEventListener('pointerup', onUp);
+        moveHandle.removeEventListener('pointercancel', onUp);
+        autoSave();
+      }
+      moveHandle.addEventListener('pointermove', onMove);
+      moveHandle.addEventListener('pointerup', onUp);
+      moveHandle.addEventListener('pointercancel', onUp);
+    });
+
+    // drag the text box around, or tap it once to edit its text
+    textEl.addEventListener('pointerdown', function(e){
+      if (textEl.classList.contains('editing')) return;
+      e.stopPropagation();
+      const startClientX=e.clientX, startClientY=e.clientY;
+      const startX=item.x, startY=item.y;
+      let moved=false;
+      function onMove(ev){
+        const dxMm=(ev.clientX-startClientX)/pxPerMm, dyMm=(ev.clientY-startClientY)/pxPerMm;
+        if (Math.abs(dxMm)>1 || Math.abs(dyMm)>1) moved=true;
+        if (moved){
+          item.x = startX+dxMm; item.y = startY+dyMm;
+          wrap.style.left = item.x+'mm'; wrap.style.top = item.y+'mm';
+        }
+      }
+      function onUp(){
+        document.removeEventListener('pointermove',onMove);
+        document.removeEventListener('pointerup',onUp);
+        if (moved) autoSave();
+        else enterRowEdit(textEl, item);
+      }
+      document.addEventListener('pointermove',onMove);
+      document.addEventListener('pointerup',onUp);
+    });
+
+    dotBtn.addEventListener('pointerdown', e=>e.stopPropagation());
+    dotBtn.addEventListener('click', function(e){ e.stopPropagation(); startTextDotMode(item.id); });
+    lineBtn.addEventListener('pointerdown', e=>e.stopPropagation());
+    lineBtn.addEventListener('click', function(e){ e.stopPropagation(); startTextLineMode(item.id); });
+    freehandBtn.addEventListener('pointerdown', e=>e.stopPropagation());
+    freehandBtn.addEventListener('click', function(e){ e.stopPropagation(); startTextFreehandMode(item.id); });
+
+    delBtn.addEventListener('pointerdown', e=>e.stopPropagation());
+    delBtn.addEventListener('click', function(e){ e.stopPropagation(); removeFreeText(item.id); });
+
+    if (item.dot) renderFreeTextDot(item);
+    if (item.connector) renderFreeTextConnector(item);
+    if (item.freehands && item.freehands.length) renderFreeTextFreehands(item);
+  }
+
+  function renderFreeTextDot(item){
+    const refs = freeTextEls[item.id]; if(!refs) return;
+    if (refs.dotEl) refs.dotEl.remove();
+    const dot = document.createElementNS(SVGNS,'circle');
+    dot.setAttribute('r', TEXT_DOT_R);
+    dot.setAttribute('fill', '#000');
+    dot.setAttribute('cx', item.dot.x);
+    dot.setAttribute('cy', item.dot.y);
+    svgOverlay.appendChild(dot);
+    refs.dotEl = dot;
+  }
+  function renderFreeTextConnector(item){
+    const refs = freeTextEls[item.id]; if(!refs) return;
+    if (refs.connVisible) refs.connVisible.remove();
+    if (refs.connDot) refs.connDot.remove();
+    const pts = item.connector.points;
+    const poly = document.createElementNS(SVGNS,'polyline');
+    poly.setAttribute('fill','none');
+    poly.setAttribute('stroke','#000');
+    poly.setAttribute('stroke-width', TEXTLINE_STROKE);
+    poly.setAttribute('stroke-linecap','round');
+    poly.setAttribute('stroke-dasharray','0.1,1.6');
+    poly.setAttribute('points', pts.map(p=>p.x+','+p.y).join(' '));
+    svgOverlay.appendChild(poly);
+    refs.connVisible = poly;
+    // older saves predate the "dot" flag and always had an end dot, so
+    // default to showing one unless explicitly set to false
+    const showDot = item.connector.dot !== false;
+    if (showDot){
+      const last = pts[pts.length-1];
+      const dot = document.createElementNS(SVGNS,'circle');
+      dot.setAttribute('r', TEXTLINE_END_R);
+      dot.setAttribute('fill', '#000');
+      dot.setAttribute('cx', last.x); dot.setAttribute('cy', last.y);
+      svgOverlay.appendChild(dot);
+      refs.connDot = dot;
+    } else {
+      refs.connDot = null;
+    }
+  }
+  function renderFreeTextFreehands(item){
+    const refs = freeTextEls[item.id]; if(!refs) return;
+    if (refs.freehandEls){ refs.freehandEls.forEach(function(fe){ fe.remove(); }); }
+    refs.freehandEls = [];
+    (item.freehands||[]).forEach(function(fh){
+      const poly = document.createElementNS(SVGNS,'polyline');
+      poly.setAttribute('fill','none');
+      poly.setAttribute('stroke','#000');
+      poly.setAttribute('stroke-width', TEXTLINE_STROKE);
+      poly.setAttribute('stroke-linecap','round');
+      poly.setAttribute('stroke-linejoin','round');
+      poly.setAttribute('points', fh.points.map(p=>p.x+','+p.y).join(' '));
+      svgOverlay.appendChild(poly);
+      refs.freehandEls.push(poly);
+    });
+  }
+  function removeFreeText(id){
+    state.freeTexts = state.freeTexts.filter(f=>f.id!==id);
+    const refs = freeTextEls[id];
+    if (refs){
+      refs.wrap.remove();
+      if (refs.dotEl) refs.dotEl.remove();
+      if (refs.connVisible) refs.connVisible.remove();
+      if (refs.connDot) refs.connDot.remove();
+      if (refs.freehandEls) refs.freehandEls.forEach(function(fe){ fe.remove(); });
+      delete freeTextEls[id];
+    }
+    if (textDotMode===id) textDotMode=null;
+    if (textLineMode===id) textLineMode=null;
+    if (textLineDrawing && textLineDrawing.itemId===id) cancelTextLineDrawing();
+    if (textFreehandMode===id){ textFreehandMode=null; pageOuter.classList.remove('mode-freehand'); }
+    updatePanPadVisibility();
+    autoSave();
+  }
+
   /* ---------------- MAP TITLE (above the border frame) ---------------- */
   mapTitleEl.addEventListener('mousedown', function(e){
     if (drawingConnector) return;
@@ -665,6 +1283,12 @@
       btnAreaTool.classList.remove('active');
       pageOuter.classList.remove('mode-area');
     }
+    if (textToolActive){
+      textToolActive = false;
+      btnTextTool.classList.remove('active');
+      pageOuter.classList.remove('mode-text');
+    }
+    updatePanPadVisibility();
   });
   mapTitleEl.addEventListener('click', function(e){
     if (drawingConnector || mapTitleEl.classList.contains('editing')) return;
@@ -755,6 +1379,7 @@
         areaToolActive = false;
         btnAreaTool.classList.remove('active');
         pageOuter.classList.remove('mode-area');
+        updatePanPadVisibility();
         enterRowEdit(textEl, row);
         return;
       }
@@ -868,9 +1493,16 @@
     imgLayerEl.appendChild(handle);
     pageOuter.insertBefore(imgLayerEl, svgOverlay);
 
-    imgLayerEl.addEventListener('mousedown', function(e){
-      if (e.target===handle || areaToolActive || drawingConnector) return;
+    /* Pointer Events (not mouse-only) so both dragging the map image and
+       resizing it via the corner handle work reliably with touch on
+       phones/tablets - mouse-only events are not always synthesized
+       promptly for small targets like the resize dot on mobile browsers,
+       and touch-action:none stops the page from intercepting the drag as
+       a scroll gesture. */
+    imgLayerEl.addEventListener('pointerdown', function(e){
+      if (e.target===handle || areaToolActive || drawingConnector || textToolActive || textDotMode!=null || textLineMode!=null || textLineDrawing || textFreehandMode!=null) return;
       e.preventDefault(); e.stopPropagation();
+      try{ imgLayerEl.setPointerCapture(e.pointerId); }catch(err){}
       updatePxPerMm();
       const startX=e.clientX, startY=e.clientY, sx=state.image.x, sy=state.image.y;
       function onMove(ev){
@@ -878,11 +1510,19 @@
         state.image.y = sy + (ev.clientY-startY)/pxPerMm;
         applyImageStyle();
       }
-      function onUp(){ document.removeEventListener('mousemove',onMove); document.removeEventListener('mouseup',onUp); autoSave(); }
-      document.addEventListener('mousemove',onMove); document.addEventListener('mouseup',onUp);
+      function onUp(){
+        imgLayerEl.removeEventListener('pointermove',onMove);
+        imgLayerEl.removeEventListener('pointerup',onUp);
+        imgLayerEl.removeEventListener('pointercancel',onUp);
+        autoSave();
+      }
+      imgLayerEl.addEventListener('pointermove',onMove);
+      imgLayerEl.addEventListener('pointerup',onUp);
+      imgLayerEl.addEventListener('pointercancel',onUp);
     });
-    handle.addEventListener('mousedown', function(e){
+    handle.addEventListener('pointerdown', function(e){
       e.stopPropagation(); e.preventDefault();
+      try{ handle.setPointerCapture(e.pointerId); }catch(err){}
       updatePxPerMm();
       const startX=e.clientX, startW=state.image.w, ratio=state.image.ratio;
       function onMove(ev){
@@ -890,8 +1530,15 @@
         state.image.w = newW; state.image.h = newW/ratio;
         applyImageStyle();
       }
-      function onUp(){ document.removeEventListener('mousemove',onMove); document.removeEventListener('mouseup',onUp); autoSave(); }
-      document.addEventListener('mousemove',onMove); document.addEventListener('mouseup',onUp);
+      function onUp(){
+        handle.removeEventListener('pointermove',onMove);
+        handle.removeEventListener('pointerup',onUp);
+        handle.removeEventListener('pointercancel',onUp);
+        autoSave();
+      }
+      handle.addEventListener('pointermove',onMove);
+      handle.addEventListener('pointerup',onUp);
+      handle.addEventListener('pointercancel',onUp);
     });
   }
   function applyImageStyle(){
@@ -904,17 +1551,25 @@
 
   /* ---------------- SAVE / OPEN / AUTOSAVE ---------------- */
   function serialize(){
-    return JSON.stringify({ orientation, PAGE_W, PAGE_H, title: state.title, image: state.image, rows: state.rows, areas: state.areas, connectors: state.connectors });
+    return JSON.stringify({ orientation, PAGE_W, PAGE_H, title: state.title, image: state.image, rows: state.rows, areas: state.areas, connectors: state.connectors, freeTexts: state.freeTexts });
   }
   function autoSave(){ try{ localStorage.setItem(STORAGE_KEY, serialize()); }catch(e){} }
 
   function clearAll(){
     Object.values(rowEls).forEach(r=>r.wrap.remove());
-    Object.values(areaEls).forEach(a=>{a.poly.remove(); if(a.patPoly)a.patPoly.remove(); a.delBtn.remove();});
+    Object.values(areaEls).forEach(a=>{a.poly.remove(); if(a.patPoly)a.patPoly.remove(); a.delBtn.remove(); if(a.recolorBtn)a.recolorBtn.remove();});
     Object.values(connectorEls).forEach(c=>{c.hit.remove(); c.visible.remove(); c.dot.remove(); c.delBtn.remove();});
+    Object.values(freeTextEls).forEach(f=>{
+      f.wrap.remove();
+      if (f.dotEl) f.dotEl.remove();
+      if (f.connVisible) f.connVisible.remove();
+      if (f.connDot) f.connDot.remove();
+      if (f.freehandEls) f.freehandEls.forEach(function(fe){ fe.remove(); });
+    });
     Object.keys(rowEls).forEach(k=>delete rowEls[k]);
     Object.keys(areaEls).forEach(k=>delete areaEls[k]);
     Object.keys(connectorEls).forEach(k=>delete connectorEls[k]);
+    Object.keys(freeTextEls).forEach(k=>delete freeTextEls[k]);
     if (imgLayerEl){ imgLayerEl.remove(); imgLayerEl=null; }
     mapTitleEl.textContent = '';
   }
@@ -924,7 +1579,7 @@
     orientation = data.orientation || 'portrait';
     PAGE_W = data.PAGE_W || 210; PAGE_H = data.PAGE_H || 297;
     applyPageSize();
-    state = { title: data.title || '', image:null, rows:{left:[],left2:[],right2:[],right:[]}, areas: data.areas||[], connectors: data.connectors||[] };
+    state = { title: data.title || '', image:null, rows:{left:[],left2:[],right2:[],right:[]}, areas: data.areas||[], connectors: data.connectors||[], freeTexts: data.freeTexts||[] };
     mapTitleEl.textContent = state.title;
     let maxId = 0;
     ['left','left2','right2','right'].forEach(function(key){
@@ -936,12 +1591,17 @@
     });
     state.areas.forEach(a=>maxId=Math.max(maxId,a.id));
     state.connectors.forEach(c=>maxId=Math.max(maxId,c.id));
+    state.freeTexts.forEach(function(f){
+      maxId=Math.max(maxId,f.id);
+      if (f.freehands) f.freehands.forEach(function(fh){ if (fh.id) maxId=Math.max(maxId, fh.id); });
+    });
     idCounter = maxId+1;
 
     if (data.image) loadImageFromDataUrl(data.image.src, {x:data.image.x,y:data.image.y,w:data.image.w,h:data.image.h});
     ['left','left2','right2','right'].forEach(key => state.rows[key].forEach(buildRowEl));
     state.areas.forEach(buildAreaEl);
     state.connectors.forEach(buildConnectorEl);
+    state.freeTexts.forEach(buildFreeTextEl);
   }
 
   document.getElementById('btnSave').addEventListener('click', function(){
@@ -966,7 +1626,7 @@
     PAGE_W = 210; PAGE_H = 297;
     applyPageSize();
     zoomLevel = 1; applyZoom();
-    state = { title:'', image:null, rows:{left:[],left2:[],right2:[],right:[]}, areas:[], connectors:[] };
+    state = { title:'', image:null, rows:{left:[],left2:[],right2:[],right:[]}, areas:[], connectors:[], freeTexts:[] };
     idCounter = 1;
     try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
   });
@@ -1073,6 +1733,42 @@
           ctx.beginPath(); ctx.arc(last.x*ppm, last.y*ppm, DOT_R*ppm, 0, Math.PI*2); ctx.fill();
         });
 
+        // text-tool dots, lines & freehand strokes
+        state.freeTexts.forEach(function(item){
+          if (item.dot){
+            ctx.fillStyle = '#000';
+            ctx.beginPath(); ctx.arc(item.dot.x*ppm, item.dot.y*ppm, TEXT_DOT_R*ppm, 0, Math.PI*2); ctx.fill();
+          }
+          if (item.connector){
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = Math.max(1, TEXTLINE_STROKE*ppm/2.83);
+            ctx.lineCap = 'round';
+            ctx.setLineDash([0.001, 1.6*ppm/2.83*2]);
+            ctx.beginPath();
+            item.connector.points.forEach((p,i)=>{ if(i===0) ctx.moveTo(p.x*ppm,p.y*ppm); else ctx.lineTo(p.x*ppm,p.y*ppm); });
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.lineCap = 'butt';
+            const showDot = item.connector.dot !== false;
+            if (showDot){
+              const last = item.connector.points[item.connector.points.length-1];
+              ctx.fillStyle = '#000';
+              ctx.beginPath(); ctx.arc(last.x*ppm, last.y*ppm, TEXTLINE_END_R*ppm, 0, Math.PI*2); ctx.fill();
+            }
+          }
+          if (item.freehands && item.freehands.length){
+            item.freehands.forEach(function(fh){
+              ctx.strokeStyle = '#000';
+              ctx.lineWidth = Math.max(1, TEXTLINE_STROKE*ppm/2.83);
+              ctx.lineCap = 'round';
+              ctx.lineJoin = 'round';
+              ctx.beginPath();
+              fh.points.forEach((p,i)=>{ if(i===0) ctx.moveTo(p.x*ppm,p.y*ppm); else ctx.lineTo(p.x*ppm,p.y*ppm); });
+              ctx.stroke();
+            });
+          }
+        });
+
         // rows: use live DOM geometry of the actual text box for exact fidelity
         const pageRect = pageOuter.getBoundingClientRect();
         const screenPpm = pageRect.width / PAGE_W;
@@ -1095,6 +1791,22 @@
         state.rows.left2.forEach(drawRow);
         state.rows.right2.forEach(drawRow);
         state.rows.right.forEach(drawRow);
+
+        // free-text labels (same live-geometry approach as label rows)
+        state.freeTexts.forEach(function(item){
+          if (!item.text) return;
+          const refs = freeTextEls[item.id]; if (!refs) return;
+          const r = refs.textEl.getBoundingClientRect();
+          const x = (r.left - pageRect.left)*scale, y=(r.top-pageRect.top)*scale;
+          const w = r.width*scale, h = r.height*scale;
+          const fontPx = 13.5 * (ppm*25.4/72) * 1.15;
+          ctx.font = fontPx+'px "Noto Sans Sinhala","Segoe UI",Arial,sans-serif';
+          ctx.fillStyle = '#111';
+          ctx.textBaseline = 'middle';
+          ctx.textAlign = 'left';
+          const pad = 5*ppm/2.83;
+          ctx.fillText(item.text, x+pad, y+h/2, w-2*pad);
+        });
 
         // copyright credit, printed outside the border frame near the bottom edge
         const creditFontPx = 10 * (ppm*25.4/72);
@@ -1136,6 +1848,27 @@
       const a=document.createElement('a');
       a.href = pdf.output('datauristring'); a.download = 'geosketch-page.pdf'; a.click();
     }).catch(err=>alert('Export අසාර්ථක විය: '+err.message));
+  });
+
+  /* ---------------- HOW TO USE (opens a separate page) ---------------- */
+  document.getElementById('btnHowTo').addEventListener('click', function(){
+    const w = window.open('', '_blank');
+    if (!w){ alert('Popup blocked - please allow popups for this site to view the instructions.'); return; }
+    w.document.write(
+      '<!DOCTYPE html><html lang="si"><head><meta charset="UTF-8">' +
+      '<meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+      '<title>How to use - EDUHELP-GeoSketch</title>' +
+      '<style>' +
+      'body{ margin:0; font-family:"Segoe UI","Noto Sans Sinhala",Arial,sans-serif; background:#e7e9ec; color:#1c1f26; }' +
+      '.wrap{ max-width:720px; margin:0 auto; padding:40px 24px 60px; }' +
+      'h1{ font-weight:400; font-size:28px; margin:0 0 18px; }' +
+      'p{ font-size:15px; line-height:1.7; }' +
+      '</style></head><body>' +
+      '<div class="wrap"><h1>How to use</h1>' +
+      '<p>මෙය භාවිතයට අදාළ උපදෙස් පහතින් දැක්වේ.</p>' +
+      '</div></body></html>'
+    );
+    w.document.close();
   });
 
   updatePxPerMm();
