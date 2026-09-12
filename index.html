@@ -22,7 +22,7 @@
   .toolbar{ display:flex; flex-wrap:wrap; justify-content:center; gap:10px; padding:6px 16px; }
   .toolbar button, .toolbar label.filebtn{
     font-family:inherit; font-size:14px; padding:9px 18px; border-radius:22px;
-    border:1.5px solid var(--ink); background:#fff; color:var(--ink); cursor:pointer;
+    border:1.5px solid var(--ink); background:#fff; color:var(--ink); cursor:default;
     display:inline-flex; align-items:center; gap:6px; white-space:nowrap;
   }
   .toolbar button:hover, .toolbar label.filebtn:hover{ background:#f0f2f5; }
@@ -32,23 +32,23 @@
   .zoomRow{ display:flex; justify-content:center; align-items:center; gap:10px; padding:2px 16px 6px; }
   .zoomBtn{
     width:30px; height:30px; border-radius:50%; border:1.5px solid var(--ink); background:#fff;
-    font-size:17px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    font-size:17px; line-height:1; cursor:default; display:flex; align-items:center; justify-content:center;
     color:var(--ink); user-select:none;
   }
   .zoomBtn:hover{ background:#f0f2f5; }
   .zoomBtn:active{ background:#e2e5ea; }
-  .zoomLabel{ font-size:13px; min-width:50px; text-align:center; color:#333; cursor:pointer; user-select:none; }
+  .zoomLabel{ font-size:13px; min-width:50px; text-align:center; color:#333; cursor:default; user-select:none; }
   .zoomLabel:hover{ text-decoration:underline; }
   .zoomHint{ font-size:11.5px; color:var(--muted); }
 
   .paletteRow{ display:flex; justify-content:center; align-items:center; gap:6px; padding:12px 16px 4px; flex-wrap:wrap; }
-  .swatch{ width:28px; height:24px; border-radius:3px; cursor:pointer; border:2px solid transparent; }
+  .swatch{ width:28px; height:24px; border-radius:3px; cursor:default; border:2px solid transparent; }
   .swatch.selected{ border-color:var(--ink); transform:scale(1.08); }
-  #customColor{ width:30px; height:26px; padding:0; border:1px solid var(--line); border-radius:4px; cursor:pointer; }
+  #customColor{ width:30px; height:26px; padding:0; border:1px solid var(--line); border-radius:4px; cursor:default; }
 
   .patternRow{ display:flex; justify-content:center; align-items:center; gap:8px; padding:2px 16px 8px; flex-wrap:wrap; }
   .patSwatch{
-    width:36px; height:26px; border-radius:3px; cursor:pointer; overflow:hidden;
+    width:36px; height:26px; border-radius:3px; cursor:default; overflow:hidden;
     border:2px solid var(--line); background:#fff; display:flex; align-items:center; justify-content:center;
   }
   .patSwatch svg{ width:100%; height:100%; display:block; }
@@ -82,7 +82,7 @@
   .plusBox{
     width:20px; height:20px; border:2px solid var(--red); border-radius:4px; color:var(--red);
     display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:700;
-    cursor:pointer; background:#fff; position:relative; z-index:5;
+    cursor:default; background:#fff; position:relative; z-index:5;
   }
   .plusBox:hover{ background:#ffecec; }
   .plusLine{ position:absolute; top:20px; left:9px; width:1.4px; background:var(--red); }
@@ -111,14 +111,14 @@
   .rowDelete{
     position:absolute; top:-8px; right:-8px; width:15px; height:15px; border-radius:50%;
     background:var(--red); color:#fff; font-size:10px; line-height:15px; text-align:center;
-    cursor:pointer; display:none; z-index:6;
+    cursor:default; display:none; z-index:6;
   }
   .labelRow:hover .rowDelete{ display:block; }
   .labelRow.left .rowDelete{ right:-8px; left:auto; }
   .labelRow.right .rowDelete{ left:-8px; right:auto; }
 
-  .imageLayer{ position:absolute; cursor:grab; touch-action:none; }
-  .imageLayer:active{ cursor:grabbing; }
+  .imageLayer{ position:absolute; cursor:default; touch-action:none; }
+  .imageLayer:active{ cursor:default; }
   .imageLayer img{ width:100%; height:100%; display:block; user-select:none; -webkit-user-drag:none; pointer-events:none; }
   .resizeHandle{
     position:absolute; width:16px; height:16px; right:-8px; bottom:-8px;
@@ -134,7 +134,7 @@
   .shapeDelete{
     position:absolute; width:17px; height:17px; border-radius:50%;
     background:var(--red); color:#fff; font-size:11px; line-height:17px; text-align:center;
-    transform:translate(-50%,-50%); cursor:pointer; display:none; z-index:6;
+    transform:translate(-50%,-50%); cursor:default; display:none; z-index:6;
   }
   .shapeDelete.show{ display:block; }
 
@@ -158,7 +158,7 @@
   .panPad.show{ display:flex; }
   .panBtn{
     width:36px; height:36px; border-radius:8px; border:1.5px solid var(--ink); background:#fff;
-    font-size:16px; display:flex; align-items:center; justify-content:center; cursor:pointer;
+    font-size:16px; display:flex; align-items:center; justify-content:center; cursor:default;
     color:var(--ink); touch-action:none; user-select:none;
   }
   .panBtn:active{ background:#e2e5ea; }
@@ -173,7 +173,7 @@
     display:flex; gap:6px; background:#fff; border:1.4px solid var(--line); border-radius:6px;
     padding:4px 7px; box-shadow:0 2px 6px rgba(0,0,0,.18); z-index:5; touch-action:none;
   }
-  .miniBtn{ width:26px; height:22px; display:flex; align-items:center; justify-content:center; cursor:pointer; border-radius:4px; }
+  .miniBtn{ width:26px; height:22px; display:flex; align-items:center; justify-content:center; cursor:default; border-radius:4px; }
   .miniBtn:hover{ background:#f0f2f5; }
   .miniBtn.active{ background:#e2e5ea; }
   .miniDot{ width:8px; height:8px; border-radius:50%; background:var(--red); display:block; }
