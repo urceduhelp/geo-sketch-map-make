@@ -1,2081 +1,597 @@
 <!DOCTYPE html>
 <html lang="si">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EDUHELP-GeoSketch</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GeoSketch</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;700&display=swap" rel="stylesheet">
 <style>
-  :root{
-    --ink:#1c1f26;
-    --line:#d8dbe0;
-    --accent:#3a6ea5;
-    --accent-dark:#28517d;
-    --red:#e21b1b;
-    --muted:#9aa0a8;
-    --panel:#f4f5f7;
-  }
-  *{box-sizing:border-box;}
-  body{ margin:0; font-family:"Segoe UI","Noto Sans Sinhala",Arial,sans-serif; background:#e7e9ec; color:var(--ink); }
-  h1.title{ text-align:center; font-weight:400; font-size:34px; margin:22px 0 14px; }
-
-  .toolbar{ display:flex; flex-wrap:wrap; justify-content:center; gap:10px; padding:6px 16px; }
-  .toolbar button, .toolbar label.filebtn{
-    font-family:inherit; font-size:14px; padding:9px 18px; border-radius:22px;
-    border:1.5px solid var(--ink); background:#fff; color:var(--ink); cursor:default;
-    display:inline-flex; align-items:center; gap:6px; white-space:nowrap;
-  }
-  .toolbar button:hover, .toolbar label.filebtn:hover{ background:#f0f2f5; }
-  .toolbar button.active{ background:var(--ink); color:#fff; }
-  #fileInput,#openInput{ display:none; }
-
-  .zoomRow{ display:flex; justify-content:center; align-items:center; gap:10px; padding:2px 16px 6px; }
-  .zoomBtn{
-    width:30px; height:30px; border-radius:50%; border:1.5px solid var(--ink); background:#fff;
-    font-size:17px; line-height:1; cursor:default; display:flex; align-items:center; justify-content:center;
-    color:var(--ink); user-select:none;
-  }
-  .zoomBtn:hover{ background:#f0f2f5; }
-  .zoomBtn:active{ background:#e2e5ea; }
-  .zoomLabel{ font-size:13px; min-width:50px; text-align:center; color:#333; cursor:default; user-select:none; }
-  .zoomLabel:hover{ text-decoration:underline; }
-  .zoomHint{ font-size:11.5px; color:var(--muted); }
-
-  .paletteRow{ display:flex; justify-content:center; align-items:center; gap:6px; padding:12px 16px 4px; flex-wrap:wrap; }
-  .swatch{ width:28px; height:24px; border-radius:3px; cursor:default; border:2px solid transparent; }
-  .swatch.selected{ border-color:var(--ink); transform:scale(1.08); }
-  #customColor{ width:30px; height:26px; padding:0; border:1px solid var(--line); border-radius:4px; cursor:default; }
-
-  .patternRow{ display:flex; justify-content:center; align-items:center; gap:8px; padding:2px 16px 8px; flex-wrap:wrap; }
-  .patSwatch{
-    width:36px; height:26px; border-radius:3px; cursor:default; overflow:hidden;
-    border:2px solid var(--line); background:#fff; display:flex; align-items:center; justify-content:center;
-  }
-  .patSwatch svg{ width:100%; height:100%; display:block; }
-  .patSwatch.selected{ border-color:var(--ink); }
-  .patSwatch.patNone{ font-size:13px; color:var(--muted); }
-
-  .hint{ text-align:center; font-size:13.5px; color:#333; padding:2px 16px 14px; }
-  .hint b{ color:#000; } .hint .step{ color:var(--accent); font-weight:600; }
-
-  .stage{ display:flex; justify-content:center; padding:10px 16px 60px; overflow:auto; }
-
-  #pageOuter{
-    position:relative; background:#fff; box-shadow:0 6px 24px rgba(0,0,0,.22); flex-shrink:0;
-  }
-  .borderFrame{
-    position:absolute; top:20mm; left:20mm; right:20mm; bottom:20mm;
-    border:1.6px solid #000; border-radius:16px; pointer-events:none;
-  }
-
-  .mapTitle{
-    position:absolute; top:0; left:0; right:0; height:20mm;
-    display:flex; align-items:center; justify-content:center; padding:0 24mm;
-    font-size:19px; font-weight:700; color:#111; text-align:center;
-    outline:none; cursor:text; z-index:3;
-  }
-  .mapTitle:empty:before{ content:'මාතෘකාව මෙතන click කර type කරන්න'; color:var(--muted); font-weight:400; font-size:14px; }
-  .mapTitle.editing{ outline:1.5px solid var(--accent); border-radius:4px; }
-
-  .colPlus{ position:absolute; top:4mm; }
-  .colPlus.left{ left:22mm; } .colPlus.right{ right:22mm; }
-  .plusBox{
-    width:20px; height:20px; border:2px solid var(--red); border-radius:4px; color:var(--red);
-    display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:700;
-    cursor:default; background:#fff; position:relative; z-index:5;
-  }
-  .plusBox:hover{ background:#ffecec; }
-  .plusLine{ position:absolute; top:20px; left:9px; width:1.4px; background:var(--red); }
-  .colPlus.right .plusLine{ left:auto; right:9px; }
-  .colPlus.right2 .plusLine{ left:auto; right:9px; }
-  .colPlus.left2, .colPlus.right2{ display:none; }
-
-  .labelRow{ position:absolute; display:inline-flex; align-items:stretch; gap:0; max-width:66mm; }
-  .rowText{
-    display:inline-block; padding:2px 6px; min-width:16px; min-height:1.3em; outline:none;
-    font-size:13.5px; line-height:1.35; color:#111; background:#fff; border:1.4px solid var(--red);
-    cursor:text; white-space:normal; word-break:break-word;
-  }
-  .rowText.filled{ border-color:#000; color:#111; }
-  .rowText:empty:before{ content:'add text'; color:var(--muted); }
-  .rowText.editing{ outline:1.5px solid var(--accent); }
-  .rowSquare{
-    width:9px; height:9px; background:var(--red); flex:0 0 auto; align-self:center; margin:0 3px;
-    cursor:crosshair;
-  }
-  .labelRow.left .rowSquare{ order:2; }
-  .labelRow.left .rowText{ order:1; }
-  .labelRow.right .rowSquare{ order:1; }
-  .labelRow.right .rowText{ order:2; }
-
-  .rowDelete{
-    position:absolute; top:-8px; right:-8px; width:15px; height:15px; border-radius:50%;
-    background:var(--red); color:#fff; font-size:10px; line-height:15px; text-align:center;
-    cursor:default; display:none; z-index:6;
-  }
-  .labelRow:hover .rowDelete{ display:block; }
-  .labelRow.left .rowDelete{ right:-8px; left:auto; }
-  .labelRow.right .rowDelete{ left:-8px; right:auto; }
-
-  .imageLayer{ position:absolute; cursor:default; touch-action:none; }
-  .imageLayer:active{ cursor:default; }
-  .imageLayer img{ width:100%; height:100%; display:block; user-select:none; -webkit-user-drag:none; pointer-events:none; }
-  .resizeHandle{
-    position:absolute; width:16px; height:16px; right:-8px; bottom:-8px;
-    background:var(--accent); border:2px solid #fff; border-radius:50%;
-    cursor:nwse-resize; box-shadow:0 0 0 1px rgba(0,0,0,.2); z-index:4;
-    touch-action:none;
-  }
-
-  #svgOverlay{ position:absolute; top:0; left:0; pointer-events:none; }
-  .areaShape{ cursor:move; pointer-events:fill; touch-action:none; }
-  .connectorHit{ cursor:move; pointer-events:stroke; touch-action:none; }
-  .connectorVisible, .connectorDot{ pointer-events:none; }
-  .shapeDelete{
-    position:absolute; width:17px; height:17px; border-radius:50%;
-    background:var(--red); color:#fff; font-size:11px; line-height:17px; text-align:center;
-    transform:translate(-50%,-50%); cursor:default; display:none; z-index:6;
-  }
-  .shapeDelete.show{ display:block; }
-
-  #pageOuter.mode-area{ cursor:crosshair; touch-action:none; }
-  #pageOuter.mode-freehand{ cursor:crosshair; touch-action:none; }
-  #pageOuter.mode-connector{ cursor:default; touch-action:none; }
-  #pageOuter.mode-connector *{ cursor:default; }
-  #pageOuter.mode-text{ cursor:text; }
-
-  .footerRow{ text-align:center; padding:6px 0 30px; font-size:12px; color:#9aa0a8; }
-
-  /* ---- Pan Pad: shown on top of the page while Area Tool / Freehand Tool
-     is active, since those modes disable normal touch-scrolling inside the
-     canvas (touch-action:none) so the map can be drawn on precisely - this
-     gives a way to still move around the page on a phone/tablet. ---- */
-  .panPad{
-    position:fixed; left:50%; bottom:14px; transform:translateX(-50%); z-index:50;
-    display:none; gap:6px; background:rgba(255,255,255,.95); border:1px solid var(--line);
-    border-radius:12px; padding:6px; box-shadow:0 3px 12px rgba(0,0,0,.25);
-  }
-  .panPad.show{ display:flex; }
-  .panBtn{
-    width:36px; height:36px; border-radius:8px; border:1.5px solid var(--ink); background:#fff;
-    font-size:16px; display:flex; align-items:center; justify-content:center; cursor:default;
-    color:var(--ink); touch-action:none; user-select:none;
-  }
-  .panBtn:active{ background:#e2e5ea; }
-  .panDivider{ width:1px; align-self:stretch; background:var(--line); margin:2px 2px; }
-
-  /* ---- Text Tool: free-floating text box + mini dot/line palette ---- */
-  .freeTextWrap{ position:absolute; z-index:4; }
-  .freeTextWrap .rowText{ max-width:70mm; }
-  .freeTextWrap .rowDelete{ display:block; } /* always visible - hover doesn't work on touch */
-  .miniPalette{
-    position:absolute; bottom:100%; left:0; margin-bottom:5px;
-    display:flex; gap:6px; background:#fff; border:1.4px solid var(--line); border-radius:6px;
-    padding:4px 7px; box-shadow:0 2px 6px rgba(0,0,0,.18); z-index:5; touch-action:none;
-  }
-  .miniBtn{ width:26px; height:22px; display:flex; align-items:center; justify-content:center; cursor:default; border-radius:4px; }
-  .miniBtn:hover{ background:#f0f2f5; }
-  .miniBtn.active{ background:#e2e5ea; }
-  .miniDot{ width:8px; height:8px; border-radius:50%; background:var(--red); display:block; }
-  .miniLine{ width:3px; height:16px; background:var(--red); display:block; }
-  .miniFreehand{ display:block; }
-  .miniFreehand svg{ display:block; }
-
-  /* ---- move handle: lets a free-text box be click-and-dragged without
-     interfering with clicking into the text itself to type ---- */
-  .moveHandle{
-    position:absolute; left:-25px; top:50%; transform:translateY(-50%);
-    width:20px; height:20px; border-radius:50%; background:#fff;
-    border:1.4px solid var(--accent); color:var(--accent); font-size:12px;
-    display:flex; align-items:center; justify-content:center; cursor:move;
-    z-index:5; user-select:none; touch-action:none;
-  }
-  .moveHandle:hover{ background:#eaf1f8; }
-
-  /* ---- area shape recolor button (shown alongside delete once an area is selected) ---- */
-  .shapeRecolor{ transform:translate(-165%,-50%); font-size:13px; }
-
-  /* ---- Map picker modal (opened from 🗺️ Add map) ---- */
-  .modalOverlay{
-    position:fixed; inset:0; background:rgba(20,22,26,.55); z-index:100;
-    display:none; align-items:center; justify-content:center; padding:20px;
-  }
-  .modalOverlay.show{ display:flex; }
-  .modalBox{
-    background:#fff; border-radius:14px; width:100%; max-width:480px; max-height:82vh;
-    display:flex; flex-direction:column; overflow:hidden; box-shadow:0 12px 40px rgba(0,0,0,.35);
-  }
-  .modalHeader{
-    display:flex; align-items:center; justify-content:space-between; padding:14px 18px;
-    border-bottom:1px solid var(--line); font-size:16px; font-weight:600;
-  }
-  .modalClose{ cursor:default; font-size:20px; color:var(--muted); line-height:1; padding:2px 4px; }
-  .modalClose:hover{ color:var(--ink); }
-  .modalList{ overflow-y:auto; padding:8px; flex:1; }
-  .modalItem{
-    display:flex; align-items:center; gap:12px; padding:9px 10px; border-radius:10px;
-    cursor:default; border:1px solid transparent;
-  }
-  .modalItem:hover{ background:var(--panel); border-color:var(--line); }
-  .modalItem.loading{ opacity:.55; pointer-events:none; }
-  .modalThumb{
-    width:52px; height:38px; border-radius:6px; object-fit:cover; flex:0 0 auto;
-    background:var(--panel); border:1px solid var(--line);
-  }
-  .modalItemName{ font-size:14px; line-height:1.35; color:#111; }
-  .modalItemSpin{ margin-left:auto; font-size:12px; color:var(--muted); flex:0 0 auto; }
-  .modalFooter{ padding:12px 18px 16px; border-top:1px solid var(--line); }
-  .modalFooter .filebtn{ width:100%; justify-content:center; }
+:root{--ink:#0d2b45;--grid:#1aa7ec;--paper:#f4f8fb;--red:#d6212b}
+*{box-sizing:border-box}
+html,body{max-width:100%;overflow-x:hidden}
+body{margin:0;height:100vh;height:100dvh;display:flex;flex-direction:column;font:15px 'Noto Sans Sinhala','Iskoola Pota',sans-serif;background:var(--paper);color:var(--ink)}
+header{flex:none;background:var(--ink);color:#fff;padding:8px 14px;display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;position:relative;z-index:30}
+h1{margin:0;font-size:21px;letter-spacing:.5px}h1 i{font-style:normal;color:var(--grid)}
+select,button,input{font:inherit}
+select,button{padding:6px 10px;border-radius:6px;border:1px solid #9bb;background:#fff;color:var(--ink)}
+button{cursor:pointer;background:var(--grid);color:#fff;border:0;font-weight:700}
+header label.mapl{display:flex;gap:6px;align-items:center;font-size:13px}
+header select{max-width:260px}
+#lang{display:flex;gap:4px}
+#lang button{background:transparent;border:1px solid #ffffff66;border-radius:14px;padding:4px 11px;font-size:13px;font-weight:400}
+#lang button.on{background:var(--grid);border-color:var(--grid);font-weight:700}
+/* search + letter bar */
+.sw{position:relative;flex:1 1 300px;min-width:240px;max-width:560px}
+#q{width:100%;height:40px;padding:0 112px 0 12px;border:1px solid #9bb;border-radius:8px;color:var(--ink)}
+#lbb{position:absolute;right:5px;top:5px;height:30px;padding:0 10px;font-size:13px}
+#lbb.on{background:var(--ink)}
+#mvb{font-size:17px;padding:4px 10px}
+#mvb.on{background:var(--red);box-shadow:0 0 0 2px #fff8}
+.drop{position:absolute;left:0;right:0;top:46px;display:none;background:#fff;color:var(--ink);border:2px solid var(--grid);border-radius:8px;box-shadow:0 8px 26px #0005;max-height:min(60vh,460px);overflow:auto;z-index:40}
+.drop.open{display:block}
+.row{display:flex;gap:8px;align-items:center;padding:8px 10px;border-bottom:1px solid #e3edf3;cursor:pointer}
+.row:hover,.row.act{background:#e8f5fd}
+.row .gl{display:block;font-size:11px;color:#1b7a3a}
+.row small{margin-left:auto;color:#678;font-size:11px}
+.none{padding:12px;color:#789}
+/* horizontal letter board */
+#lbp{padding:10px}
+.lbl{display:flex;flex-wrap:wrap;gap:6px}
+.lbl button{min-width:40px;height:40px;padding:0 8px;background:#e8f5fd;color:var(--ink);border:1px solid #9bd;font-size:18px;font-weight:700}
+.lbl button:hover{background:var(--grid);color:#fff}
+.lbl button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.lbr{margin-top:8px;border-top:1px dashed #9bb;max-height:260px;overflow:auto}
+.lbh{font-size:12px;color:#678;margin:8px 0 0}
+/* fixed panels */
+.pop{position:fixed;z-index:35;display:none;width:min(94vw,380px);max-height:72vh;flex-direction:column;background:#fff;color:var(--ink);border:2px solid var(--grid);border-radius:8px;box-shadow:0 6px 24px #0005}
+.pop .ph{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--grid);color:#fff;font-weight:700}
+.pop .pb{overflow:auto;flex:1;min-height:60px}
+.chips{display:flex;flex-wrap:wrap;gap:7px;padding:10px}
+.chip{background:#fff;color:var(--ink);border:1px solid #9bb;border-radius:16px;padding:4px 12px;font-weight:400;font-size:14px}
+.chip i{font-style:normal;color:#678;margin-left:5px;font-size:12px}
+.chip:hover{background:#e8f5fd}
+.chip.on{background:var(--grid);color:#fff;border-color:var(--grid)}.chip.on i{color:#fff}
+.set{padding:10px 12px;display:flex;flex-direction:column;gap:12px;font-size:14px}
+.set label{display:flex;gap:8px;align-items:center;justify-content:space-between}
+.set input[type=range]{flex:1;max-width:190px}
+#st{font-size:13px;opacity:.9;flex:1 1 100%}
+main{flex:1;min-height:0;padding:8px}
+#vp{position:relative;height:100%}
+#box{height:100%;overflow:auto;display:flex;background:#dbe5ec;border:1px solid #c3d5e0;border-radius:6px}
+canvas{background:#fff;box-shadow:0 2px 14px #0003}
+/* How to use */
+#hwo{background:#f5a623}
+.hw{position:fixed;inset:0;z-index:60;display:none;background:#0d2b45cc;align-items:flex-start;justify-content:center;padding:3vh 10px;overflow:auto}
+.hw.open{display:flex}
+.hwc{background:#fff;color:var(--ink);border-radius:12px;max-width:660px;width:100%;box-shadow:0 10px 40px #0007;display:flex;flex-direction:column;max-height:94vh}
+.hwh{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 16px;background:var(--grid);color:#fff;border-radius:10px 10px 0 0;font-weight:700;font-size:17px}
+.hwh .r{display:flex;gap:6px;align-items:center}
+.hwlb{background:#ffffff33;font-weight:400;font-size:13px;padding:3px 10px;border-radius:14px}
+.hwlb.on{background:#fff;color:var(--ink);font-weight:700}
+#hwx{background:#ffffff33;font-size:18px;padding:2px 10px}
+.hwb{padding:16px;overflow:auto;line-height:1.7;font-size:15px}
+.hwb .st{display:flex;gap:12px;margin:0 0 16px}
+.hwb .n{flex:none;width:32px;height:32px;border-radius:50%;background:var(--grid);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center}
+.hwb h4{margin:0 0 2px;font-size:16px}
+.hwb p{margin:0;color:#345}
+.hwb .tip{background:#fff7e0;border:1px solid #f0d58a;border-radius:8px;padding:8px 10px;margin-top:6px;font-size:14px;color:#5a4a10}
+.hwf{padding:10px 16px;border-top:1px solid #e3edf3;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px}
+.hwf label{display:flex;gap:6px;align-items:center;cursor:pointer}
+@media(max-width:760px){
+ body{font-size:14px}
+ header{padding:6px 8px}
+ h1{font-size:18px;margin-right:auto}
+ header label.mapl{flex:1 1 100%}
+ header select{flex:1;max-width:none}
+ .sw{flex:1 1 100%;max-width:none}
+ main{padding:4px}
+}
 </style>
 </head>
 <body>
+<header>
+ <h1>Geo<i>Sketch</i></h1>
+ <div id="lang">
+  <button data-l="si">සිංහල</button>
+  <button data-l="ta">தமிழ்</button>
+  <button data-l="en">English</button>
+ </div>
+ <label class="mapl"><span data-t="map"></span><select id="map"></select></label>
+ <div class="sw" id="sw">
+  <input id="q" autocomplete="off">
+  <button id="lbb" type="button" data-t="letters"></button>
+  <div id="sug" class="drop"></div>
+  <div id="lbp" class="drop"></div>
+ </div>
+ <button id="plb" data-t="places"></button>
+ <button id="tyb" data-t="types"></button>
+ <button id="hwo" type="button" data-t="howb"></button>
+ <button id="mvb" type="button" title="Move: නම ඇදගෙන යන්න">✋</button>
+ <button id="stb">⚙</button>
+ <span id="st"></span>
+</header>
+<main><div id="vp"><div id="box"><canvas id="cv"></canvas></div></div></main>
 
-<h1 class="title">EDUHELP-GeoSketch</h1>
+<div class="pop" id="plp"><div class="ph"><span data-t="places"></span><span id="plc"></span></div><div class="pb" id="pli"></div></div>
+<div class="pop" id="typ"><div class="ph"><span data-t="types"></span></div><div class="pb"><div class="chips" id="tyc"></div></div></div>
+<div class="pop" id="stp"><div class="ph"><span data-t="settings"></span></div>
+ <div class="set">
+  <label><span data-t="nnum"></span><span style="display:flex;gap:8px;align-items:center;flex:1;justify-content:flex-end"><input id="nN" type="range" min="0" max="15" step="1" value="3"><b id="nNv" style="min-width:20px;text-align:right">3</b></span></label>
+  <label><span data-t="rivs"></span><input id="rOn" type="checkbox"></label>
+  <label><span data-t="spread"></span><input id="sOn" type="checkbox" checked></label>
+  <label><span data-t="veil"></span><input id="vOn" type="checkbox" checked></label>
+  <label><span data-t="vstr"></span><input id="vA" type="range" min="0.1" max="0.8" step="0.05" value="0.3"></label>
+  <label><span data-t="vtone"></span><select id="vC"></select></label>
+  <label><span data-t="fsz"></span><input id="fsz" type="range" min="18" max="44" value="26"></label>
+  <label><button id="mrs" type="button" data-t="mvrs"></button></label>
+ </div></div>
 
-<div class="toolbar">
-  <button class="filebtn" id="btnAddMap">🗺️ Add map</button>
-  <input type="file" id="fileInput" accept="image/*" style="display:none">
-  <button id="btnRotate">🔄 Rotate Canvas</button>
-  <button id="btnSave">💾 Save</button>
-  <label class="filebtn" id="btnOpen">📂 Open<input type="file" id="openInput" accept="application/json"></label>
-  <button id="btnTextTool">📝 Text Tool</button>
-  <button id="btnAreaTool">◧ Area Tool</button>
-  <button id="btnExportPdf">📄 EXPORT as PDF</button>
-  <button id="btnExportJpg">🖼️ EXPORT as JPG</button>
-  <button id="btnReset">🗑️ Reset</button>
-  <button id="btnHowTo">❓ How to use</button>
-</div>
+<div class="hw" id="hw"><div class="hwc">
+ <div class="hwh"><span data-t="howt"></span>
+  <span class="r"><button class="hwlb" data-l="si">සිංහල</button><button class="hwlb" data-l="ta">தமிழ்</button><button class="hwlb" data-l="en">English</button><button id="hwx" type="button">✕</button></span></div>
+ <div class="hwb" id="hwb"></div>
+ <div class="hwf"><label><input type="checkbox" id="hwn" checked><span data-t="hown"></span></label><button id="hwk" type="button" data-t="howok"></button></div>
+</div></div>
 
-<div class="zoomRow" id="zoomRow">
-  <button class="zoomBtn" id="zoomOutBtn" title="කුඩා කරන්න (Zoom Out)">−</button>
-  <span class="zoomLabel" id="zoomLabel" title="100% වෙත reset කරන්න">100%</span>
-  <button class="zoomBtn" id="zoomInBtn" title="විශාල කරන්න (Zoom In)">+</button>
-  <span class="zoomHint">Ctrl + scroll වලින්ද zoom කළ හැක · zoom කළ පසු scroll කර පිටුවේ වෙනත් පැති බලන්න</span>
-</div>
-
-<div class="paletteRow" id="paletteRow"></div>
-
-<div class="patternRow" id="patternRow"></div>
-
-<div class="hint">
-  <b>Area tool</b>-<span class="step">Step1.</span> Select area tool <span class="step">Step 2.</span> select color <span class="step">Step3.</span> draw on map &nbsp;|&nbsp;
-  <b>Text tool</b>-<span class="step">Step1.</span> Select text tool <span class="step">Step2.</span> tap on map to add a text box (drag it later using its ✥ handle) <span class="step">Step3.</span> use its ● dot / ┃ line / 〜 freehand buttons to mark, connect or draw a shape - for the line tool: tap to turn, double-click to finish with a dot, long-press to finish without one
-</div>
-
-<div class="stage" id="stage">
-  <div id="pageOuter">
-    <div class="borderFrame"></div>
-    <div class="mapTitle" id="mapTitle" contenteditable="false"></div>
-
-    <div class="colPlus left" id="plusLeft"><div class="plusBox">+</div><div class="plusLine"></div></div>
-    <div class="colPlus left2" id="plusLeft2"><div class="plusBox">+</div><div class="plusLine"></div></div>
-    <div class="colPlus right2" id="plusRight2"><div class="plusBox">+</div><div class="plusLine"></div></div>
-    <div class="colPlus right" id="plusRight"><div class="plusBox">+</div><div class="plusLine"></div></div>
-
-    <svg id="svgOverlay">
-      <defs>
-        <pattern id="pat-diagonal" patternUnits="userSpaceOnUse" width="4" height="4">
-          <line x1="0" y1="4" x2="4" y2="0" stroke="#000" stroke-width="0.35"/>
-        </pattern>
-        <pattern id="pat-grid" patternUnits="userSpaceOnUse" width="4" height="4">
-          <path d="M0,0H4 M0,0V4" stroke="#000" stroke-width="0.3" fill="none"/>
-        </pattern>
-        <pattern id="pat-lines" patternUnits="userSpaceOnUse" width="4" height="3">
-          <line x1="0" y1="1.5" x2="4" y2="1.5" stroke="#000" stroke-width="0.3"/>
-        </pattern>
-        <pattern id="pat-wave" patternUnits="userSpaceOnUse" width="6" height="3">
-          <path d="M0,1.5 Q1.5,0 3,1.5 T6,1.5" stroke="#000" stroke-width="0.3" fill="none"/>
-        </pattern>
-        <pattern id="pat-dots" patternUnits="userSpaceOnUse" width="3" height="3">
-          <circle cx="1.5" cy="1.5" r="0.4" fill="#000"/>
-        </pattern>
-      </defs>
-    </svg>
-  </div>
-</div>
-
-<div class="footerRow">www.eduhelp.lk &nbsp;|&nbsp; geosketch-2026</div>
-
-<div class="panPad" id="panPad">
-  <button class="panBtn" id="panDown" title="පහළට">▼</button>
-  <button class="panBtn" id="panUp" title="ඉහළට">▲</button>
-  <button class="panBtn" id="panRight" title="දකුණට">▶</button>
-  <button class="panBtn" id="panLeft" title="වමට">◀</button>
-  <span class="panDivider"></span>
-  <button class="panBtn" id="panZoomOut" title="කුඩා කරන්න (Zoom Out)">−</button>
-  <button class="panBtn" id="panZoomIn" title="විශාල කරන්න (Zoom In)">+</button>
-</div>
-
-<div class="modalOverlay" id="mapModalOverlay">
-  <div class="modalBox">
-    <div class="modalHeader">
-      <span>සිතියමක් තෝරන්න</span>
-      <span class="modalClose" id="modalCloseBtn">×</span>
-    </div>
-    <div class="modalList" id="modalList"></div>
-  </div>
-</div>
-
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="geosketch-core.js"></script>
 <script>
-(function(){
-  const SVGNS = 'http://www.w3.org/2000/svg';
-  const pageOuter = document.getElementById('pageOuter');
-  const svgOverlay = document.getElementById('svgOverlay');
-  const mapTitleEl = document.getElementById('mapTitle');
-  const plusLeft = document.getElementById('plusLeft');
-  const plusRight = document.getElementById('plusRight');
-  const plusLeft2 = document.getElementById('plusLeft2');
-  const plusRight2 = document.getElementById('plusRight2');
-  const paletteRow = document.getElementById('paletteRow');
-  const fileInput = document.getElementById('fileInput');
-  const openInput = document.getElementById('openInput');
-  const stageEl = document.getElementById('stage');
-  const STORAGE_KEY = 'geosketch_project_v1';
+/* ---------- භාෂා / Language texts ---------- */
+const T={
+ si:{map:'සිතියම',letters:'අකුරු ▾',places:'📍 ස්ථාන නාමාවලිය',types:'🗂 සිතියම් වර්ග',settings:'සැකසුම්',spread:'නම් එකිනෙක මත යෑම වළක්වන්න',howb:'❓ භාවිතය',howt:'GeoSketch භාවිතා කරන්නේ කෙසේද?',howok:'තේරුණා, වසන්න',hown:'නැවත පෙන්වන්න එපා',nnum:'ආසන්න ස්ථාන ගණන',rivs:'ආසන්න ගංගා ද පෙන්වන්න',mvon:'✋ Move සක්‍රියයි: නමක් ඇදගෙන යන්න (හිස් තැනක් අදිමින් සිතියම ගෙන යන්න)',mvrs:'Move කළ නම් යළි මුල් තැනට',veil:'මෘදු ආවරණය',vstr:'ආවරණ තීව්‍රතාව',vtone:'ආවරණ වර්ණය',fsz:'අකුරු ප්‍රමාණය',
+  ph:'ස්ථානයක් සොයන්න...',none:'ස්ථානයක් හමු නොවීය',hint:'ස්ථානයක් සොයන්න, අකුරක් තෝරන්න, නැතිනම් නාමාවලියෙන් තෝරන්න. සිතියමේ ස්ථානයක් ක්ලික් කළ ද හැක',near:'+ ආසන්න ස්ථාන',nodata:'මෙම සිතියමට දත්ත නැත',pickLetter:'අකුරක් තෝරන්න',loading:'load වෙමින්...',
+  tones:['සුදු','ළා කහ','ළා නිල්','ළා කොළ'],all:'වර්ගයේ සියල්ල'},
+ ta:{map:'வரைபடம்',letters:'எழுத்துகள் ▾',places:'📍 இடப்பெயர் பட்டியல்',types:'🗂 வரைபட வகைகள்',settings:'அமைப்புகள்',spread:'பெயர்கள் ஒன்றின்மேல் ஒன்று வருவதைத் தவிர்',howb:'❓ பயன்பாடு',howt:'GeoSketch ஐப் பயன்படுத்துவது எப்படி?',howok:'புரிந்தது, மூடு',hown:'மீண்டும் காட்ட வேண்டாம்',nnum:'அருகிலுள்ள இடங்களின் எண்ணிக்கை',rivs:'அருகிலுள்ள ஆறுகளையும் காட்டு',mvon:'✋ Move இயக்கத்தில்: பெயரை இழுத்துச் செல்லுங்கள் (வெற்றிடத்தை இழுத்து வரைபடத்தை நகர்த்துங்கள்)',mvrs:'நகர்த்திய பெயர்களை மீட்டமை',veil:'மென்மையான திரை',vstr:'திரையின் அடர்த்தி',vtone:'திரை நிறம்',fsz:'எழுத்து அளவு',
+  ph:'இடத்தைத் தேடுங்கள்...',none:'இடம் கிடைக்கவில்லை',hint:'இடத்தைத் தேடுங்கள், எழுத்தைத் தேர்ந்தெடுங்கள் அல்லது பட்டியலில் தேர்ந்தெடுங்கள். வரைபடத்தில் ஓர் இடத்தைத் தொட்டும் பார்க்கலாம்',near:'+ அருகிலுள்ள இடங்கள்',nodata:'இந்த வரைபடத்திற்குத் தரவு இல்லை',pickLetter:'எழுத்தைத் தேர்ந்தெடுங்கள்',loading:'ஏற்றுகிறது...',
+  tones:['வெள்ளை','இளமஞ்சள்','இளநீலம்','இளம்பச்சை'],all:'வகையில் அனைத்தும்'},
+ en:{map:'Map',letters:'Letters ▾',places:'📍 Place list',types:'🗂 Map types',settings:'Settings',spread:'Avoid overlapping names',howb:'❓ How to use',howt:'How to use GeoSketch',howok:'Got it, close',hown:'Do not show again',nnum:'Number of nearby places',rivs:'Also show nearby rivers',mvon:'✋ Move on: drag a name (drag empty space to pan the map)',mvrs:'Reset moved names',veil:'Soft overlay',vstr:'Overlay strength',vtone:'Overlay tone',fsz:'Text size',
+  ph:'Search a place...',none:'No place found',hint:'Search a place, pick a letter, choose from the list, or tap a place on the map',near:'+ nearby places',nodata:'No data for this map',pickLetter:'Pick a letter',loading:'Loading...',
+  tones:['White','Cream','Blue','Green'],all:'All in this type'}
+};
+const MN={
+ si:{ol_lanka:'සාමාන්‍ය පෙළ ලංකා සිතියම',ol_eurasia:'සාමාන්‍ය පෙළ යුරේසියා සිතියම',ol_world:'සම්පූර්ණ ලෝක සිතියම',al_europe1:'උසස් පෙළ යුරෝපා සිතියම (කළු මුහුද දක්වා)',al_europe2:'උසස් පෙළ යුරෝපා සිතියම (කැස්පියන් මුහුද දක්වා)',al_lanka:'උසස් පෙළ ලංකා සිතියම',al_india:'උසස් පෙළ ඉන්දියා සිතියම'},
+ ta:{ol_lanka:'சாதாரண தர இலங்கை வரைபடம்',ol_eurasia:'சாதாரண தர யூரேசியா வரைபடம்',ol_world:'முழு உலக வரைபடம்',al_europe1:'உயர்தர ஐரோப்பா வரைபடம் (கருங்கடல் வரை)',al_europe2:'உயர்தர ஐரோப்பா வரைபடம் (கஸ்பியன் கடல் வரை)',al_lanka:'உயர்தர இலங்கை வரைபடம்',al_india:'உயர்தர இந்தியா வரைபடம்'},
+ en:{ol_lanka:'O/L Sri Lanka map',ol_eurasia:'O/L Eurasia map',ol_world:'Full world map',al_europe1:'A/L Europe map (to the Black Sea)',al_europe2:'A/L Europe map (to the Caspian Sea)',al_lanka:'A/L Sri Lanka map',al_india:'A/L India map'}
+};
+/* ---------- How to use (පියවරෙන් පියවර) : [මාතෘකාව, විස්තරය, උපදෙස (අවශ්‍ය නම්)] ---------- */
+const HOW={
+ si:[
+  ['සිතියමක් තෝරන්න','ඉහළ තීරුවේ "සිතියම" ලැයිස්තුවෙන් ඔබට අවශ්‍ය සිතියම (ලංකා, ලෝක, යුරෝපා ආදිය) තෝරන්න. භාෂාව වෙනස් කිරීමට <b>සිංහල / தமிழ் / English</b> බොත්තම් භාවිතා කරන්න.'],
+  ['ස්ථානයක් සොයන්න','ඉහළ ඇති <b>සෙවුම් පෙට්ටියේ</b> ස්ථානයේ නමේ මුල් අකුරු කිහිපයක් ටයිප් කරන්න (උදා: <b>යාප</b>). පහළින් නම් ලැයිස්තුවක් පෙනේ. ඔබට අවශ්‍ය නම මත ක්ලික් කරන්න.','නම හරියට මතක නැද්ද? <b>අකුරු ▾</b> බොත්තම ඔබා මුල් අකුරක් තෝරන්න, නැතිනම් <b>📍 ස්ථාන නාමාවලිය</b> බොත්තමෙන් සම්පූර්ණ ලැයිස්තුව බලන්න.'],
+  ['ප්‍රතිඵලය බලන්න','සිතියම ස්වයංක්‍රීයව විශාල වී, ඔබ තෝරාගත් ස්ථානයේ <b style="color:#d6212b">නම රතු පැහැයෙන්</b> පෙනේ. ඒ සමගම අවට ඇති ස්ථාන කිහිපයක් (මුලින් 10ක්) කළු පැහැති නම් සහ ඊතල සහිතව පෙන්වයි. මෙයින් ස්ථාන එකිනෙකට සාපේක්ෂව පිහිටා ඇති ආකාරය පහසුවෙන් ඉගෙන ගත හැක. නම් එකිනෙක මත නොයන සේ ස්වයංක්‍රීයව සකසයි.'],
+  ['සිතියම මත ක්ලික් / ස්පර්ශ කරන්න','සිතියමේ ඕනෑම ස්ථානයක් (තිතක්, ප්‍රදේශයක්, ගංගාවක්) මත <b>ක්ලික් කරන්න / ඇඟිල්ලෙන් තට්ටු කරන්න</b>. එවිට එම ස්ථානය රතු පැහැයෙන් ද, ඒ අවට ඇති ආසන්නතම ස්ථාන 3 කළු පැහැයෙන් ද පෙන්වයි.','සිතියම අදිමින් ගෙන යන විට මෙය ක්‍රියා නොකරයි.'],
+  ['සිතියම ගෙනයාම සහ විශාල කිරීම','සිතියම <b>ඇඟිල්ලෙන් / mouse එකෙන් අදින්න</b>. ඉහළ දකුණේ ඇති <b>+</b> සහ <b>−</b> බොත්තමින් විශාල / කුඩා කරන්න. <b>ගැලපෙන</b> බොත්තම ඔබන විට සම්පූර්ණ සිතියම නැවත පෙනේ. පරිගණකයේ <b>Ctrl</b> ඔබාගෙන mouse wheel එක කරකවා ද විශාල කළ හැක.'],
+  ['අවට ස්ථාන ගණන වෙනස් කරන්න','<b>⚙</b> බොත්තම ඔබා "ආසන්න ස්ථාන ගණන" ලිස්සුම් තීරුව (0 සිට 15 දක්වා) වෙනස් කරන්න. ආසන්න <b>ගංගා</b> ද බැලීමට "ආසන්න ගංගා ද පෙන්වන්න" ටික් කරන්න.'],
+  ['වර්ගයක් අනුව බලන්න','<b>🗂 සිතියම් වර්ග</b> බොත්තම ඔබා (ගංගාව, වැව, වරාය ආදී) එක් වර්ගයක් තෝරන්න. එවිට එම වර්ගයේ සියලු ස්ථාන එකවර සිතියමේ පෙනේ.'],
+  ['නමක් වෙනත් තැනකට ගෙනයන්න','නම් එකිනෙක ළං වී පැහැදිලි නැතිනම් <b>✋</b> බොත්තම ඔබන්න (රතු පැහැ වේ). දැන් ඕනෑම නමක් <b>ඇදගෙන ගොස්</b> අවශ්‍ය තැන දමන්න. ඊතලයේ හිස ස්ථානයේම රැඳෙන අතර, ඊතලය 90° නැවී නම සමග ගමන් කරයි. අවසන් වූ පසු නැවත ✋ ඔබන්න.','මුල් තැනට ගෙන ඒමට: ⚙ → "Move කළ නම් යළි මුල් තැනට".'],
+  ['ඉගෙනීම පහසු කරගන්න','<b>⚙</b> තුළ "අකුරු ප්‍රමාණය" වෙනස් කළ හැක. "මෘදු ආවරණය" මගින් සිතියමේ පසුබිම ළා පැහැයකින් මැකී, නම් වඩා පැහැදිලිව පෙනේ.']
+ ],
+ ta:[
+  ['வரைபடத்தைத் தேர்ந்தெடுங்கள்','மேலே உள்ள "வரைபடம்" பட்டியலில் இருந்து தேவையான வரைபடத்தை (இலங்கை, உலகம், ஐரோப்பா போன்றவை) தேர்ந்தெடுங்கள். மொழியை மாற்ற <b>සිංහල / தமிழ் / English</b> பொத்தான்களைப் பயன்படுத்துங்கள்.'],
+  ['இடத்தைத் தேடுங்கள்','மேலே உள்ள <b>தேடல் பெட்டியில்</b> இடத்தின் பெயரின் முதல் சில எழுத்துகளைத் தட்டச்சு செய்யுங்கள். கீழே தோன்றும் பட்டியலில் தேவையான பெயரைத் தேர்ந்தெடுங்கள்.','பெயர் சரியாக நினைவில் இல்லையா? <b>எழுத்துகள் ▾</b> பொத்தானை அழுத்தி முதல் எழுத்தைத் தேர்ந்தெடுங்கள், அல்லது <b>📍 இடப்பெயர் பட்டியல்</b> மூலம் முழுப் பட்டியலைப் பாருங்கள்.'],
+  ['முடிவைப் பாருங்கள்','வரைபடம் தானாகப் பெரிதாகி, தேர்ந்தெடுத்த இடத்தின் <b style="color:#d6212b">பெயர் சிவப்பு நிறத்தில்</b> தெரியும். அதனுடன் அருகிலுள்ள சில இடங்களும் (முதலில் 10) கருப்புப் பெயர்களுடனும் அம்புகளுடனும் காட்டப்படும். இதனால் இடங்கள் ஒன்றுக்கொன்று எங்கே அமைந்துள்ளன என்பதை எளிதாகக் கற்கலாம். பெயர்கள் ஒன்றின்மேல் ஒன்று விழாதபடி தானாக அமைக்கப்படும்.'],
+  ['வரைபடத்தில் கிளிக் / தொடுதல்','வரைபடத்தில் எந்த இடத்தையும் (புள்ளி, பகுதி, ஆறு) <b>கிளிக் செய்யுங்கள் / விரலால் தொடுங்கள்</b>. அந்த இடம் சிவப்பு நிறத்திலும், அதன் அருகிலுள்ள 3 இடங்கள் கருப்பு நிறத்திலும் காட்டப்படும்.','வரைபடத்தை இழுக்கும்போது இது செயல்படாது.'],
+  ['வரைபடத்தை நகர்த்தவும் பெரிதாக்கவும்','வரைபடத்தை <b>விரலால் / மவுசால் இழுத்து</b> நகர்த்துங்கள். மேல் வலதுபுறத்தில் உள்ள <b>+</b> மற்றும் <b>−</b> பொத்தான்களால் பெரிதாக்கவும் சிறிதாக்கவும் செய்யலாம். <b>ගැලපෙන</b> பொத்தானை அழுத்தினால் முழு வரைபடமும் மீண்டும் தெரியும். கணினியில் <b>Ctrl</b> அழுத்தியபடி மவுஸ் சக்கரத்தைச் சுழற்றியும் பெரிதாக்கலாம்.'],
+  ['அருகிலுள்ள இடங்களின் எண்ணிக்கை','<b>⚙</b> பொத்தானை அழுத்தி "அருகிலுள்ள இடங்களின் எண்ணிக்கை" ஸ்லைடரை (0 முதல் 15 வரை) மாற்றுங்கள். அருகிலுள்ள <b>ஆறுகளையும்</b> காண "அருகிலுள்ள ஆறுகளையும் காட்டு" என்பதைத் தேர்வு செய்யுங்கள்.'],
+  ['வகையின்படி பாருங்கள்','<b>🗂 வரைபட வகைகள்</b> பொத்தானை அழுத்தி (ஆறு, குளம், துறைமுகம் போன்ற) ஒரு வகையைத் தேர்ந்தெடுங்கள். அந்த வகையின் எல்லா இடங்களும் ஒரே நேரத்தில் வரைபடத்தில் தெரியும்.'],
+  ['பெயரை வேறு இடத்துக்கு நகர்த்துங்கள்','பெயர்கள் நெருக்கமாக இருந்து தெளிவாகத் தெரியவில்லை என்றால் <b>✋</b> பொத்தானை அழுத்துங்கள் (சிவப்பாக மாறும்). பின்னர் எந்தப் பெயரையும் <b>இழுத்துச் சென்று</b> விரும்பிய இடத்தில் விடுங்கள். அம்புக்குறியின் முனை இடத்திலேயே இருக்கும்; அம்பு 90° வளைந்து பெயருடன் நகரும். முடிந்ததும் மீண்டும் ✋ ஐ அழுத்துங்கள்.','முதல் இடத்துக்குத் திரும்ப: ⚙ → "நகர்த்திய பெயர்களை மீட்டமை".'],
+  ['கற்றலை எளிதாக்குங்கள்','<b>⚙</b> இல் "எழுத்து அளவை" மாற்றலாம். "மென்மையான திரை" வரைபடத்தின் பின்னணியை மங்கச் செய்து பெயர்களைத் தெளிவாகக் காட்டும்.']
+ ],
+ en:[
+  ['Choose a map','Pick the map you need (Sri Lanka, World, Europe, etc.) from the "Map" list at the top. Use the <b>සිංහල / தமிழ் / English</b> buttons to change the language.'],
+  ['Search for a place','Type the first few letters of a place name in the <b>search box</b> at the top (for example <b>Jaff</b>). A list of names appears below. Click the one you want.','Do not remember the exact name? Press <b>Letters ▾</b> and pick the first letter, or open <b>📍 Place list</b> to see everything.'],
+  ['Read the result','The map zooms in automatically and shows the <b style="color:#d6212b">name of your place in red</b>. A few nearby places (10 at first) are shown too, with black names and arrows. This helps you learn how places are located relative to each other. Names are arranged automatically so they do not cover each other.'],
+  ['Click or tap the map','<b>Click or tap</b> any place on the map (a dot, an area or a river). That place is shown in red together with the 3 nearest places in black.','This does not trigger while you are dragging the map.'],
+  ['Move and zoom the map','<b>Drag the map</b> with your finger or mouse. Use <b>+</b> and <b>−</b> at the top right to zoom, and press the fit button (<b>ගැලපෙන</b>) to see the whole map again. On a computer you can also hold <b>Ctrl</b> and turn the mouse wheel.'],
+  ['Change how many nearby places','Press <b>⚙</b> and move the "Number of nearby places" slider (0 to 15). Tick "Also show nearby rivers" to include rivers.'],
+  ['Browse by type','Press <b>🗂 Map types</b> and choose a type (River, Tank, Port, etc.). All places of that type appear on the map together.'],
+  ['Move a name somewhere else','If names are too close to read, press <b>✋</b> (it turns red). Now <b>drag any name</b> and drop it where you want. The arrow tip stays on the place, and the arrow bends at 90° and follows the name. Press ✋ again when you are done.','To put names back: ⚙ → "Reset moved names".'],
+  ['Make studying easier','In <b>⚙</b> you can change the "Text size". "Soft overlay" fades the map background so names stand out more.']
+ ]
+};
+const TONES=['#ffffff','#fff1c2','#dcecff','#e2f2dc'];
+const IC={p:'●',a:'▭',r:'≈',d:'‖'};
 
-  const BORDER = 20;      // mm - inset of the black rounded frame
-  const ROW_TOP0 = 24;    // mm - first row's default top
-  const ROW_STEP = 9;     // mm - vertical spacing between stacked rows
-  const ROW_ANCHOR0 = BORDER + 4;  // mm - default distance from the page edge (kept inside the border frame)
-  const DOT_R = 0.8;      // mm - radius of the connector end-dot (label-row connector tool)
+/* ---------- Supabase දත්ත (සියලු භාෂා එකවර) ---------- */
+const SUPABASE_URL='https://jcijglwpkfluyzrltimk.supabase.co';
+const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpjaWpnbHdwa2ZsdXl6cmx0aW1rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4MzU3OTUsImV4cCI6MjA4MjQxMTc5NX0.dvT8OiyVEiYn_DhkMakmSq1Vvr4REDr0kYPnyqCtWHs';
+const DATA={si:{},ta:{},en:{}};
+async function loadAll(){
+ const ck='gs_viewer_all';let rows=null;
+ try{
+  if(!window.supabase)throw new Error('no lib');
+  const sbx=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+  const{data,error}=await sbx.from('map_data').select('map_key,lang,data');
+  if(error)throw error;
+  rows=data;try{localStorage.setItem(ck,JSON.stringify(rows));}catch(e){}
+ }catch(e){try{rows=JSON.parse(localStorage.getItem(ck)||'null');}catch(_){rows=null;}}
+ (rows||[]).forEach(r=>{if(DATA[r.lang])DATA[r.lang][r.map_key]=r.data;});
+}
 
-  const TEXTLINE_STROKE = 1.2;         // mm - Text Tool line thickness
-  const TEXTLINE_END_R = TEXTLINE_STROKE * 1.0; // mm - end dot radius = 3x line thickness (diameter)
-  const TEXT_DOT_R = 1.1;              // mm - Dot Tool marker radius
-  const LONG_PRESS_MS = 550;
-  const LONG_PRESS_MOVE_TOLERANCE = 6; // px
-
-  let orientation = 'portrait';
-  let PAGE_W = 210, PAGE_H = 297;
-  let pxPerMm = 1;
-  let idCounter = 1;
-
-  let state = {
-    title: '',                   // map title, shown above the border frame
-    image: null,                 // {src,x,y,w,h,ratio}
-    rows: { left: [], left2: [], right2: [], right: [] }, // {id,side,col,top,anchor,text}
-    areas: [],                   // {id,points:[{x,y}],color,pattern}
-    connectors: [],               // {id,points:[{x,y}]}
-    freeTexts: []                 // {id,x,y,text,dot:{x,y}|null,connector:{points:[...]}|null}
-  };
-
-  const rowEls = {};        // id -> {wrap, textEl, delBtn}
-  const areaEls = {};       // id -> {poly, patPoly, delBtn, recolorBtn}
-  const connectorEls = {};  // id -> {hit, visible, dot, delBtn}
-  const freeTextEls = {};   // id -> {wrap, textEl, delBtn, palette, dotBtn, lineBtn, dotEl, connVisible, connDot}
-
-  let imgLayerEl = null;
-
-  function updatePxPerMm(){ pxPerMm = pageOuter.getBoundingClientRect().width / PAGE_W; }
-  window.addEventListener('resize', updatePxPerMm);
-
-  /* landscape (rotated) canvases are wide enough to fit two label columns
-     per side, so a second "+" is added on the left and right - each with
-     its own small red square to start dashed connector lines into the map. */
-  function colAnchorMm(colId){
-    if (colId==='L1' || colId==='R1') return ROW_ANCHOR0;
-    const innerWidth = PAGE_W - 2*BORDER;
-    return BORDER + innerWidth*0.30;
+/* ---------- තත්ත්වය ---------- */
+const $=id=>document.getElementById(id),cv=$('cv');
+const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let lang='si',cur=null,img=null,L=null,G=new Map(),marked=new Set(),hl=null,mainName=null,activeCat=null,lbLetter=null,sugList=[],sugAct=-1;
+const items=()=>((DATA[lang]||{})[cur&&cur.k])||[];
+const Z=setupZoom(cv,$('box'),()=>L,$('vp'));
+cv.style.touchAction='none';cv.style.cursor='grab';
+/* ---------- Move මෙවලම (✋): නම පමණක් ඇදගෙන යාම. ඊතල හිස ස්ථානයේම තබා, අග කොටස 90° නැවුමකින් නම සමග ගමන් කරයි ---------- */
+let moveMode=false,drag=null,lastS=new Map();
+const manual=new Map();/* i -> {lx,ly} හෝ {ox,oy}. තාවකාලිකයි; සුරැකි දත්ත වෙනස් නොවේ */
+const effItems=()=>items().map((it,i)=>manual.has(i)?Object.assign({},it,manual.get(i)):it);
+function hitLabel(nx,ny){
+ const g=cv.getContext('2d'),fs=+$('fsz').value,X=x=>L.ix+x*L.iw,Y=y=>L.iy+y*L.ih,mx=X(nx),my=Y(ny);
+ g.font=`${fs}px ${FONT}`;
+ const arr=effItems();
+ for(const i of [...marked].reverse()){
+  const base=arr[i];if(!base||!base.n)continue;
+  const it=lastS.get(i)||base,w=g.measureText(it.n).width;
+  if(it.t=='r'){
+   const P=it.pts.map(p=>[X(p[0]+(it.ox||0)),Y(p[1]+(it.oy||0))]);
+   if(P.length>1&&nearest(P,mx,my-fs*.6)[2]<=Math.max(16,fs*.8))return{i,kind:'r',ox0:it.ox||0,oy0:it.oy||0};
+   continue;
   }
-  function updateExtraColumns(){
-    const showExtra = orientation === 'landscape';
-    plusLeft2.style.display = showExtra ? 'block' : 'none';
-    plusRight2.style.display = showExtra ? 'block' : 'none';
-    if (showExtra){
-      plusLeft2.style.left = (colAnchorMm('L2')-2)+'mm';
-      plusRight2.style.right = (colAnchorMm('R2')-2)+'mm';
-    }
-  }
+  let cx,cy;
+  if(it.t=='p'){const x=X(it.x),y=Y(it.y),r=it.nd?0:fs*.14;
+   if(it.lx!=null){cx=X(it.lx);cy=Y(it.ly);}else{cx=x+r+6+w/2;cy=y-fs*.45;}}
+  else if(it.t=='a'){const c=it.lx!=null?[it.lx,it.ly]:centroid(it.pts);cx=X(c[0]);cy=Y(c[1]);}
+  else if(it.lx!=null){cx=X(it.lx);cy=Y(it.ly);}
+  else continue;
+  if(Math.abs(mx-cx)<=w/2+8&&Math.abs(my-cy)<=fs/2+8)return{i,kind:'l',dx:cx-mx,dy:cy-my};
+ }
+ return null;
+}
+cv.addEventListener('pointerdown',e=>{if(e.button)return;
+ if(moveMode&&L){const[nx,ny]=pointer(cv,L,e),h=hitLabel(nx,ny);
+  if(h){drag=Object.assign(h,{id:e.pointerId,nx0:nx,ny0:ny});try{cv.setPointerCapture(e.pointerId);}catch(_){}e.preventDefault();return;}}
+ Z.startPan(e);});
+addEventListener('pointermove',e=>{
+ const rd=n=>Math.round(n*1e4)/1e4,cl=(v,a,b)=>Math.min(b,Math.max(a,v));
+ if(drag&&e.pointerId==drag.id){
+  const[nx,ny]=pointer(cv,L,e);
+  if(drag.kind=='r')manual.set(drag.i,{ox:rd(cl(drag.ox0+nx-drag.nx0,-1,1)),oy:rd(cl(drag.oy0+ny-drag.ny0,-1,1))});
+  else manual.set(drag.i,{lx:rd(cl((L.ix+nx*L.iw+drag.dx-L.ix)/L.iw,0,1)),ly:rd(cl((L.iy+ny*L.ih+drag.dy-L.iy)/L.ih,0,1))});
+  draw();return;}
+ if(moveMode&&L&&e.target==cv&&!cv.classList.contains('zpan')){const[nx,ny]=pointer(cv,L,e);cv.style.cursor=hitLabel(nx,ny)?'move':'grab';}
+});
+const endDrag=e=>{if(drag&&e.pointerId==drag.id)drag=null;};
+addEventListener('pointerup',endDrag);addEventListener('pointercancel',endDrag);
+$('mvb').onclick=e=>{e.stopPropagation();closeAll();moveMode=!moveMode;$('mvb').classList.toggle('on',moveMode);cv.style.cursor='grab';
+ $('st').textContent=moveMode?T[lang].mvon:(G.size?T[lang].hint:T[lang].nodata);};
+$('mrs').onclick=()=>{manual.clear();draw();};
 
-  function applyPageSize(){
-    pageOuter.style.width = PAGE_W+'mm';
-    pageOuter.style.height = PAGE_H+'mm';
-    svgOverlay.setAttribute('viewBox','0 0 '+PAGE_W+' '+PAGE_H);
-    svgOverlay.setAttribute('width', PAGE_W+'mm');
-    svgOverlay.setAttribute('height', PAGE_H+'mm');
-    updatePxPerMm();
-    updateExtraColumns();
-  }
-  applyPageSize();
-
-  /* ---------------- ZOOM ----------------
-     Uses the CSS "zoom" property on #pageOuter (supported in all current
-     evergreen browsers). Unlike transform:scale(), zoom changes the element's
-     real layout size, so the surrounding .stage wrapper (overflow:auto)
-     naturally grows scrollbars once the zoomed page no longer fits the
-     screen - that's how panning to different sides of a zoomed page works.
-     All existing mm<->px math already reads pageOuter.getBoundingClientRect()
-     live, so it keeps working correctly at any zoom level with no other
-     changes needed. */
-  let zoomLevel = 1;
-  const ZOOM_MIN = 0.4, ZOOM_MAX = 3, ZOOM_STEP = 0.1;
-  const zoomLabelEl = document.getElementById('zoomLabel');
-
-  function applyZoom(anchorClientX, anchorClientY){
-    // try to keep whatever point is under the cursor (or the viewport
-    // center, if triggered from a button) visually in the same spot
-    const stageRect = stageEl.getBoundingClientRect();
-    const ax = anchorClientX!=null ? anchorClientX : stageRect.left + stageRect.width/2;
-    const ay = anchorClientY!=null ? anchorClientY : stageRect.top + stageRect.height/2;
-    const oldZoom = parseFloat(pageOuter.style.zoom) || 1;
-    const beforeX = stageEl.scrollLeft + (ax - stageRect.left);
-    const beforeY = stageEl.scrollTop + (ay - stageRect.top);
-    const ratio = zoomLevel / oldZoom;
-
-    pageOuter.style.zoom = zoomLevel;
-    zoomLabelEl.textContent = Math.round(zoomLevel*100)+'%';
-
-    stageEl.scrollLeft = beforeX*ratio - (ax - stageRect.left);
-    stageEl.scrollTop = beforeY*ratio - (ay - stageRect.top);
-    updatePxPerMm();
-  }
-  function zoomBy(step, clientX, clientY){
-    zoomLevel = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, +(zoomLevel+step).toFixed(2)));
-    applyZoom(clientX, clientY);
-  }
-  document.getElementById('zoomInBtn').addEventListener('click', function(){ zoomBy(ZOOM_STEP); });
-  document.getElementById('zoomOutBtn').addEventListener('click', function(){ zoomBy(-ZOOM_STEP); });
-  zoomLabelEl.addEventListener('click', function(){ zoomLevel = 1; applyZoom(); });
-  stageEl.addEventListener('wheel', function(e){
-    if (!(e.ctrlKey || e.metaKey)) return;
-    e.preventDefault();
-    zoomBy(e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP, e.clientX, e.clientY);
-  }, { passive:false });
-
-  /* ---------------- PAN PAD (mobile: pan the page while Area Tool / Freehand
-     Tool is active, since those modes turn off normal touch-scroll inside
-     the canvas so drawing works precisely) ---------------- */
-  const panPad = document.getElementById('panPad');
-  function updatePanPadVisibility(){
-    const show = areaToolActive || textToolActive || textFreehandMode!=null;
-    panPad.classList.toggle('show', show);
-  }
-  const PAN_STEP = 55; // px per tap / repeat tick
-  function panStage(dx, dy){
-    // Horizontal overflow is contained *inside* #stage (it has overflow:auto
-    // and a width bounded by the viewport), so left/right must scroll
-    // stageEl itself. Vertical overflow is NOT contained inside #stage -
-    // .stage has no height limit, so it simply grows tall enough to fit the
-    // whole page, and it's the actual browser window/document that scrolls
-    // up and down past it. So up/down must scroll the window instead -
-    // scrolling stageEl.scrollTop has no effect since it never overflows.
-    if (dx) stageEl.scrollLeft += dx;
-    if (dy) window.scrollBy(0, dy);
-  }
-  function wirePanBtn(id, dx, dy){
-    const btn = document.getElementById(id);
-    let iv = null;
-    function start(e){
-      e.preventDefault(); e.stopPropagation();
-      panStage(dx,dy);
-      if (iv) clearInterval(iv);
-      iv = setInterval(function(){ panStage(dx,dy); }, 90);
-    }
-    function stop(){ if (iv){ clearInterval(iv); iv=null; } }
-    btn.addEventListener('pointerdown', start);
-    btn.addEventListener('pointerup', stop);
-    btn.addEventListener('pointerleave', stop);
-    btn.addEventListener('pointercancel', stop);
-  }
-  wirePanBtn('panDown', 0, PAN_STEP);
-  wirePanBtn('panUp', 0, -PAN_STEP);
-  wirePanBtn('panRight', PAN_STEP, 0);
-  wirePanBtn('panLeft', -PAN_STEP, 0);
-  document.getElementById('panZoomOut').addEventListener('click', function(){ zoomBy(-ZOOM_STEP); });
-  document.getElementById('panZoomIn').addEventListener('click', function(){ zoomBy(ZOOM_STEP); });
-
-  /* ---------------- MAP PICKER MODAL (🗺️ Add map) ---------------- */
-  const PRESET_MAPS = [
-    { name:'සාමාන්‍ය පෙළ ලංකා සිතියම', url:'https://raw.githubusercontent.com/urceduhelp/geo-sketch-map-make/main/2022(2021)OL%20Lanka-01.jpg' },
-    { name:'සාමාන්‍ය පෙළ යුරේසියා සිතියම', url:'https://raw.githubusercontent.com/urceduhelp/geo-sketch-map-make/main/2022(2021)OL%20Lanka-02.jpg' },
-    { name:'සම්පූර්ණ ලෝක සිතියම', url:'https://raw.githubusercontent.com/urceduhelp/geo-sketch-map-make/main/2022(2021)OL%20world-02.jpg' },
-    { name:'උසස් පෙළ යුරෝපා සිතියම (කළු මුහුද දක්වා)', url:'https://raw.githubusercontent.com/urceduhelp/geo-sketch-map-make/main/AL_Europe_1.jpg' },
-    { name:'උසස් පෙළ යුරෝපා සිතියම (කැස්පියන් මුහුද දක්වා)', url:'https://raw.githubusercontent.com/urceduhelp/geo-sketch-map-make/main/AL_Europe_2.jpg' },
-    { name:'උසස් පෙළ ලංකා සිතියම', url:'https://raw.githubusercontent.com/urceduhelp/geo-sketch-map-make/main/AL_Lanka_India-01.jpg' },
-    { name:'උසස් පෙළ ඉන්දියා සිතියම', url:'https://raw.githubusercontent.com/urceduhelp/geo-sketch-map-make/main/AL_Lanka_India-02.jpg' }
-  ];
-  const btnAddMap = document.getElementById('btnAddMap');
-  const mapModalOverlay = document.getElementById('mapModalOverlay');
-  const modalList = document.getElementById('modalList');
-  const modalCloseBtn = document.getElementById('modalCloseBtn');
-
-  PRESET_MAPS.forEach(function(preset){
-    const item = document.createElement('div');
-    item.className = 'modalItem';
-
-    const thumb = document.createElement('img');
-    thumb.className = 'modalThumb';
-    thumb.loading = 'lazy';
-    thumb.alt = preset.name;
-    thumb.src = preset.url;
-
-    const nameEl = document.createElement('div');
-    nameEl.className = 'modalItemName';
-    nameEl.textContent = preset.name;
-
-    const spin = document.createElement('div');
-    spin.className = 'modalItemSpin';
-
-    item.appendChild(thumb);
-    item.appendChild(nameEl);
-    item.appendChild(spin);
-    item.addEventListener('click', function(){
-      if (item.classList.contains('loading')) return;
-      item.classList.add('loading');
-      spin.textContent = 'Loading…';
-      loadPresetMapFromUrl(preset.url, function(ok){
-        item.classList.remove('loading');
-        spin.textContent = '';
-        if (ok) closeMapModal();
-        else alert('මෙම සිතියම load කිරීමට නොහැකි විය. Internet සම්බන්ධතාවය පරීක්ෂා කර නැවත උත්සාහ කරන්න.');
-      });
-    });
-    modalList.appendChild(item);
+/* ---------- සිතියම මත click/touch: එම ස්ථානය + ආසන්න ස්ථාන 3 ---------- */
+const CLICK_N=3;/* ආසන්න ස්ථාන ගණන */
+function groupAt(nx,ny,maxPx){
+ const arr=items(),X=x=>L.ix+x*L.iw,Y=y=>L.iy+y*L.ih,mx=X(nx),my=Y(ny);
+ let best=null,bd=1e9;
+ G.forEach(e=>{
+  let d=1e9;
+  e.idx.forEach(i=>{const it=arr[i];if(!it)return;
+   if(it.t=='p'){d=Math.min(d,Math.hypot(X(it.x)-mx,Y(it.y)-my));return;}
+   if(!it.pts||!it.pts.length)return;
+   const ox=it.t=='r'?(it.ox||0):0,oy=it.t=='r'?(it.oy||0):0,
+    P=it.pts.map(p=>[X(p[0]+ox),Y(p[1]+oy)]);
+   if(it.t=='a'){
+    if(inPoly(P,mx,my)){d=Math.min(d,maxPx*.6);return;}/* ප්‍රදේශය ඇතුළත: තිත් වලට පළමුතැන දෙයි */
+    P.push(P[0]);
+   }
+   d=Math.min(d,P.length>1?nearest(P,mx,my)[2]:Math.hypot(P[0][0]-mx,P[0][1]-my));
   });
+  if(d<bd){bd=d;best=e;}
+ });
+ return bd<=maxPx?best:null;
+}
+cv.addEventListener('click',e=>{
+ if(moveMode||!L||!G.size)return;
+ const r=cv.getBoundingClientRect(),
+  maxPx=40*L.W/r.width;/* තිරය මත ආසන්න පික්සල් 40ක් ඇතුළත */
+ const[nx,ny]=pointer(cv,L,e),g=groupAt(nx,ny,maxPx);
+ if(!g)return;
+ closeAll();activeCat=null;$('q').value=g.n;
+ marked=new Set(nearGroup(g.n,CLICK_N,false));
+ hl=g.a;mainName=g.n;
+ draw();/* zoom/pan වෙනස් නොකර, ඇති තැනම පෙන්වයි */
+ $('st').textContent=`🎯 ${g.n}  ${T[lang].near} ${CLICK_N}`;
+});
 
-  const uploadItem = document.createElement('div');
-  uploadItem.className = 'modalItem';
-  const uploadThumb = document.createElement('div');
-  uploadThumb.className = 'modalThumb';
-  uploadThumb.style.display = 'flex';
-  uploadThumb.style.alignItems = 'center';
-  uploadThumb.style.justifyContent = 'center';
-  uploadThumb.style.fontSize = '18px';
-  uploadThumb.textContent = '📁';
-  const uploadName = document.createElement('div');
-  uploadName.className = 'modalItemName';
-  uploadName.textContent = 'Select from my device';
-  uploadItem.appendChild(uploadThumb);
-  uploadItem.appendChild(uploadName);
-  uploadItem.addEventListener('click', function(){
-    closeMapModal();
-    fileInput.click();
-  });
-  modalList.appendChild(uploadItem);
+new ResizeObserver(()=>Z.apply()).observe($('box'));
+const norm=s=>String(s||'').trim().toLowerCase();
+const coll=()=>{try{return new Intl.Collator(lang);}catch(e){return new Intl.Collator();}};
 
-  function openMapModal(){ mapModalOverlay.classList.add('show'); }
-  function closeMapModal(){ mapModalOverlay.classList.remove('show'); }
-  btnAddMap.addEventListener('click', openMapModal);
-  modalCloseBtn.addEventListener('click', closeMapModal);
-  mapModalOverlay.addEventListener('click', function(e){ if (e.target===mapModalOverlay) closeMapModal(); });
+/* ---------- ස්ථාන කණ්ඩායම් (එකම නමින් ඇති ඇතුළත් කිරීම් එකට) ---------- */
+const anchorOf=it=>{
+ if(it.t=='p')return[it.x,it.y];
+ if(it.t=='a')return centroid(it.pts);
+ const m=it.pts[Math.floor((it.pts.length-1)/2)];
+ return it.t=='r'?[m[0]+(it.ox||0),m[1]+(it.oy||0)]:m;
+};
+function buildGroups(){
+ G=new Map();const arr=items();
+ arr.forEach((it,i)=>{if(!it||!it.n)return;
+  let e=G.get(it.n);if(!e){e={n:it.n,idx:[],g:new Set()};G.set(it.n,e);}
+  e.idx.push(i);(it.g||[]).forEach(c=>e.g.add(c));});
+ G.forEach(e=>{const its=e.idx.map(i=>arr[i]);
+  const p=its.find(x=>x.t=='p'&&!x.nd)||its.find(x=>x.t=='p')||its[0];
+  e.a=anchorOf(p);e.t=p.t;});
+}
+const sorted=()=>{const c=coll();return[...G.values()].sort((a,b)=>c.compare(a.n,b.n));};
+const tagOf=e=>[...e.g].join(' · ');
+const rowHtml=e=>`<div class="row" data-n="${esc(e.n)}"><span>${IC[e.t]||'●'}</span><span>${esc(e.n)}${e.g.size?`<span class="gl">${esc(tagOf(e))}</span>`:''}</span></div>`;
 
-  function loadPresetMapFromUrl(url, cb){
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = function(){
-      try{
-        const canvas = document.createElement('canvas');
-        canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
-        const cctx = canvas.getContext('2d');
-        cctx.drawImage(img,0,0);
-        const dataUrl = canvas.toDataURL('image/jpeg',0.92);
-        loadImageFromDataUrl(dataUrl, null);
-        if (cb) cb(true);
-      }catch(err){
-        // canvas got tainted (CORS) - fall back to using the remote URL
-        // directly as the image source; export/save will still work as
-        // long as the image stays reachable
-        loadImageFromDataUrl(url, null);
-        if (cb) cb(true);
-      }
-    };
-    img.onerror = function(){ if (cb) cb(false); };
-    img.src = url;
+const NN=()=>Math.min(15,Math.max(0,+$('nN').value||0));
+/* N = ආසන්න ස්ථාන ගණන (ගංගා හැර). riv = true නම් ආසන්නතම ගංගා 5ක් ද එක් කරයි */
+/* ගංගාවක් ද? : (1) වක්‍ර අකුරු (t='r') හෝ (2) වර්ගය 'ගංගාව' / 'අතු ගංගාව' ලෙස සලකුණු කර ඇති ඕනෑම අයිතමයක්
+   හෝ (3) වර්ගයක් නැති, නම ගඟ/ඔය/ආරු වලින් අවසන් වන අයිතමයක් */
+const RIVCATS=['ගංගාව','අතු ගංගාව'];
+function isRiverG(e){
+ const arr=items();
+ return e.idx.some(i=>arr[i]&&arr[i].t=='r')||RIVCATS.some(c=>e.g.has(c))||
+  (!e.g.size&&/(ගඟ|ඔය|ආරු)$/.test(String(e.n).trim()));
+}
+function nearGroup(name,N=10,riv=false){
+ const e0=G.get(name);if(!e0||!L)return e0?e0.idx:[];
+ const arr=items(),isR=isRiverG,
+  d0=e=>Math.hypot((e.a[0]-e0.a[0])*L.iw,(e.a[1]-e0.a[1])*L.ih);
+ const others=[...G.values()].filter(e=>e!==e0&&!isR(e)).map(e=>({e,d:d0(e)}))
+  .sort((a,b)=>a.d-b.d).slice(0,N).map(x=>x.e);
+ let rv=[];
+ if(riv){
+  /* ගංගාවේ ඕනෑම කොටසක සිට තෝරාගත් ස්ථානයට ඇති ආසන්නතම දුර (තිත්, රේඛා, අකුරු මාර්ග සියල්ලටම) */
+  const dr=e=>Math.min(...e.idx.flatMap(i=>{const it=arr[i];if(!it)return[];
+   const D=(x,y)=>Math.hypot((x-e0.a[0])*L.iw,(y-e0.a[1])*L.ih);
+   if(it.t=='p')return[D(it.x,it.y)];
+   if(!it.pts)return[];
+   const ox=it.t=='r'?(it.ox||0):0,oy=it.t=='r'?(it.oy||0):0;
+   return it.pts.map(p=>D(p[0]+ox,p[1]+oy));}));
+  rv=[...G.values()].filter(e=>e!==e0&&isR(e)).map(e=>({e,d:dr(e)})).filter(x=>isFinite(x.d))
+   .sort((a,b)=>a.d-b.d).slice(0,5).map(x=>x.e);
+ }
+ return[e0,...others,...rv].flatMap(e=>e.idx);
+}
+
+/* ---------- නම් එකිනෙක මත යෑම ස්වයංක්‍රීයව වැළැක්වීම ----------
+   පෙන්වීමේදී පමණක් නම් වල තැන ගණනය කරයි. සුරැකි දත්ත කිසිවිටෙක වෙනස් නොවේ. */
+function spreadLabels(g,fs){
+ const arr=effItems(),X=x=>L.ix+x*L.iw,Y=y=>L.iy+y*L.ih,out=new Map();
+ g.font=`${fs}px ${FONT}`;
+ const h=fs*1.15,boxes=[];/* box = [x0,y0,x1,y1,හිමිකරු] */
+ const hit=(a,b)=>a[0]<b[2]&&a[2]>b[0]&&a[1]<b[3]&&a[3]>b[1];
+ const free=(b,o)=>!boxes.some(x=>x[4]!==o&&hit(b,x));
+ const mk=(cx,cy,w,o)=>[cx-w/2-5,cy-h/2-3,cx+w/2+5,cy+h/2+3,o];
+ const idxs=[...marked].filter(i=>arr[i]);
+
+ /* බාධක: සියලු තිත් සහ ගංගා නම් */
+ idxs.forEach(i=>{const it=arr[i];
+  if(it.t=='p'){const x=X(it.x),y=Y(it.y),r=(it.nd?0:fs*.14)+4;boxes.push([x-r,y-r,x+r,y+r,i]);}
+  else if(it.t=='r'&&it.pts.length){const m=it.pts[Math.floor(it.pts.length/2)],
+    cx=X(m[0]+(it.ox||0)),cy=Y(m[1]+(it.oy||0))-fs*.6;boxes.push(mk(cx,cy,g.measureText(it.n).width,-1));}
+ });
+
+ /* තෝරාගත් ස්ථානය මුලින්ම, ඉන්පසු ආසන්නතම ඒවා */
+ const ref=hl?[X(hl[0]),Y(hl[1])]:null;
+ const dist=i=>{const a=anchorOf(arr[i]);return ref?Math.hypot(X(a[0])-ref[0],Y(a[1])-ref[1]):0;};
+ idxs.sort((a,b)=>(manual.has(b)-manual.has(a))||dist(a)-dist(b));/* අතින් Move කළ නම් මුලින්ම, ස්ථාවරව */
+
+ idxs.forEach(i=>{
+  const it=arr[i];if(it.t=='r'||!it.n)return;
+  if(it.t=='d'&&it.lx==null)return;
+  const w=g.measureText(it.n).width;
+  const fixed=(manual.has(i)||!$('sOn').checked)&&it.t!='r';
+  let ax,ay,pc,arrowDefault;
+  if(it.t=='p'){
+   ax=X(it.x);ay=Y(it.y);const r=it.nd?0:fs*.14;
+   if(it.lx!=null){pc=[X(it.lx),Y(it.ly)];arrowDefault=true;}
+   else{pc=[ax+r+6+w/2,ay-fs*.45];arrowDefault=false;}
+  }else if(it.t=='a'){
+   const c=it.lx!=null?[it.lx,it.ly]:centroid(it.pts);pc=[X(c[0]),Y(c[1])];ax=pc[0];ay=pc[1];arrowDefault=false;
+  }else{pc=[X(it.lx),Y(it.ly)];const m=it.pts[Math.floor(it.pts.length/2)];ax=X(m[0]);ay=Y(m[1]);arrowDefault=false;}
+
+  /* අපේක්ෂක ස්ථාන: මුලින් දැනට ඇති තැන, ඉන්පසු වටේට විශාල වන වළලු */
+  const cands=[pc];
+  for(let k=1;!fixed&&k<=14;k++){const d=fs*(.9+k*.9);
+   for(let j=0;j<12;j++){const a=j*Math.PI/6+k*.26,co=Math.cos(a),si=Math.sin(a);
+    cands.push([ax+co*(d+w/2*Math.abs(co)),ay+si*(d*.8+h/2)]);}}
+
+  let best=null;
+  for(let n=0;n<cands.length;n++){
+   let [cx,cy]=cands[n];
+   cx=Math.min(L.W-w/2-8,Math.max(w/2+8,cx));cy=Math.min(L.H-h,Math.max(h,cy));
+   const b=mk(cx,cy,w,i),arrow=it.t=='p'&&(n>0||arrowDefault);
+   if(!fixed&&!free(b,i))continue;
+   let segs=[];
+   if(arrow)segs=[
+    [Math.min(cx,ax)-3,cy-3,Math.max(cx,ax)+3,cy+3,i],
+    [ax-3,Math.min(cy,ay)-3,ax+3,Math.max(cy,ay)+3,i]];
+   if(!fixed&&segs.some(s=>!free(s,i)))continue;
+   best={cx,cy,b,segs,n};break;
   }
-
-  document.getElementById('btnRotate').addEventListener('click', function(){
-    orientation = orientation === 'portrait' ? 'landscape' : 'portrait';
-    const w=PAGE_W, h=PAGE_H; PAGE_W=h; PAGE_H=w;
-    applyPageSize();
-    autoSave();
-  });
-
-  /* ---------------- COLOR PALETTE ---------------- */
-  const PALETTE = [
-    '#f3c6de','#eaa6cf','#d7d7d7','#e8c9b0','#c9906a','#96654a',
-    '#e9f3df','#d7ecc0','#c3e29c','#a9d873',
-    '#cdeaf7','#a9def0','#6fc9e8','#3badd9',
-    '#f2e2b8','#e9cf94','#dcb46e','#c99a4c'
-  ];
-  let currentAreaColor = PALETTE[10];
-  PALETTE.forEach(function(c){
-    const sw = document.createElement('div');
-    sw.className = 'swatch';
-    sw.style.background = c;
-    if (c === currentAreaColor) sw.classList.add('selected');
-    sw.addEventListener('click', function(){
-      currentAreaColor = c;
-      paletteRow.querySelectorAll('.swatch').forEach(s=>s.classList.remove('selected'));
-      sw.classList.add('selected');
-    });
-    paletteRow.appendChild(sw);
-  });
-  const customColor = document.createElement('input');
-  customColor.type = 'color'; customColor.id = 'customColor'; customColor.value = '#7a4fd6';
-  customColor.title = 'කැමති වර්ණයක්';
-  customColor.addEventListener('input', function(){
-    currentAreaColor = customColor.value;
-    paletteRow.querySelectorAll('.swatch').forEach(s=>s.classList.remove('selected'));
-  });
-  paletteRow.appendChild(customColor);
-
-  /* ---------------- AREA FILL PATTERNS ---------------- */
-  const PATTERNS = [
-    { id:'none', label:'රටාවක් නැත' },
-    { id:'diagonal', label:'විකර්ණ රේඛා (කැලෑ/කඳු)' },
-    { id:'grid', label:'කොටු ජාලය (නගර/පතල්)' },
-    { id:'lines', label:'තිරස් රේඛා (කුඹුරු/වගා බිම්)' },
-    { id:'wave', label:'රැළි රේඛා (ජලාශ/වගුරු)' },
-    { id:'dots', label:'තිත් (වැලි/වෙරළ)' }
-  ];
-  let currentAreaPattern = 'none';
-  const patternRow = document.getElementById('patternRow');
-  PATTERNS.forEach(function(p){
-    const sw = document.createElement('div');
-    sw.className = 'patSwatch' + (p.id==='none' ? ' selected patNone' : '');
-    sw.title = p.label;
-    if (p.id === 'none'){
-      sw.textContent = '⛔';
-    } else {
-      const s = document.createElementNS(SVGNS,'svg');
-      s.setAttribute('viewBox','0 0 36 26');
-      const r = document.createElementNS(SVGNS,'rect');
-      r.setAttribute('x',0); r.setAttribute('y',0); r.setAttribute('width',36); r.setAttribute('height',26);
-      r.setAttribute('fill','url(#pat-'+p.id+')');
-      s.appendChild(r);
-      sw.appendChild(s);
-    }
-    sw.addEventListener('click', function(){
-      currentAreaPattern = p.id;
-      patternRow.querySelectorAll('.patSwatch').forEach(x=>x.classList.remove('selected'));
-      sw.classList.add('selected');
-    });
-    patternRow.appendChild(sw);
-  });
-
-  function hexToRgba(hex, a){
-    let h = hex.replace('#','');
-    if (h.length===3) h = h.split('').map(c=>c+c).join('');
-    const r=parseInt(h.substr(0,2),16), g=parseInt(h.substr(2,2),16), b=parseInt(h.substr(4,2),16);
-    return 'rgba('+r+','+g+','+b+','+a+')';
+  if(!best){const [cx,cy]=cands[0];best={cx,cy,b:mk(cx,cy,w,i),segs:[],n:0};}
+  boxes.push(best.b);best.segs.forEach(s=>boxes.push(s));
+  if(best.n>0||it.lx!=null){/* ගෙන ගිය හෝ ඊතල සහිත ඒවා */
+   out.set(i,Object.assign({},it,{lx:(best.cx-L.ix)/L.iw,ly:(best.cy-L.iy)/L.ih}));
   }
-
-  /* ================================================================
-     SHAPE SELECTION (shared by areas & connectors: shows delete /
-     recolor buttons for whichever shape was last clicked)
-     ================================================================ */
-  function selectShape(id, buttons){
-    document.querySelectorAll('.shapeDelete.show').forEach(b=>b.classList.remove('show'));
-    buttons.forEach(b=>b.classList.add('show'));
-  }
-  function isBackgroundTarget(target){
-    return target === pageOuter || target === svgOverlay || target.classList.contains('borderFrame') ||
-           (imgLayerEl && (target === imgLayerEl || imgLayerEl.contains(target) && !target.classList.contains('resizeHandle')));
-  }
-  pageOuter.addEventListener('mousedown', function(e){
-    if (isBackgroundTarget(e.target)){
-      document.querySelectorAll('.shapeDelete.show').forEach(b=>b.classList.remove('show'));
-    }
-  });
-
-  /* ---------------- AREA TOOL (free-form filled shapes) ---------------- */
-  let areaToolActive = false;
-  const btnAreaTool = document.getElementById('btnAreaTool');
-  btnAreaTool.addEventListener('click', function(){
-    areaToolActive = !areaToolActive;
-    btnAreaTool.classList.toggle('active', areaToolActive);
-    pageOuter.classList.toggle('mode-area', areaToolActive);
-    if (areaToolActive){
-      textToolActive = false; btnTextTool.classList.remove('active'); pageOuter.classList.remove('mode-text');
-      cancelTextLineDrawing(); textDotMode = null;
-      textFreehandMode = null; pageOuter.classList.remove('mode-freehand');
-    }
-    updatePanPadVisibility();
-  });
-
-  /* Uses Pointer Events (not mouse-only events) so the Area Tool works
-     correctly with touch input on phones/tablets and on interactive
-     smart-boards, not just with a mouse. */
-  pageOuter.addEventListener('pointerdown', function(e){
-    if (!areaToolActive || drawingConnector || textDotMode!=null || textLineMode!=null || textLineDrawing || textFreehandMode!=null) return;
-    if (e.target.classList.contains('resizeHandle')) return;
-    e.preventDefault();
-    try{ pageOuter.setPointerCapture(e.pointerId); }catch(err){}
-    updatePxPerMm();
-    const rect = pageOuter.getBoundingClientRect();
-    const start = { x:(e.clientX-rect.left)/pxPerMm, y:(e.clientY-rect.top)/pxPerMm };
-    const points = [start];
-    const poly = document.createElementNS(SVGNS,'polygon');
-    poly.setAttribute('fill', hexToRgba(currentAreaColor,0.55));
-    poly.setAttribute('points', start.x+','+start.y);
-    svgOverlay.appendChild(poly);
-
-    function onMove(ev){
-      const x=(ev.clientX-rect.left)/pxPerMm, y=(ev.clientY-rect.top)/pxPerMm;
-      const last = points[points.length-1];
-      if (Math.hypot(x-last.x,y-last.y) < 0.7) return;
-      points.push({x,y});
-      poly.setAttribute('points', points.map(p=>p.x+','+p.y).join(' '));
-    }
-    function onUp(){
-      pageOuter.removeEventListener('pointermove', onMove);
-      pageOuter.removeEventListener('pointerup', onUp);
-      pageOuter.removeEventListener('pointercancel', onUp);
-      poly.remove();
-      if (points.length >= 3){
-        const item = { id: idCounter++, type:'area', points, color: currentAreaColor, pattern: currentAreaPattern };
-        state.areas.push(item);
-        buildAreaEl(item);
-        autoSave();
-      }
-    }
-    pageOuter.addEventListener('pointermove', onMove);
-    pageOuter.addEventListener('pointerup', onUp);
-    pageOuter.addEventListener('pointercancel', onUp);
-  });
-
-  function buildAreaEl(item){
-    const poly = document.createElementNS(SVGNS,'polygon');
-    poly.setAttribute('class','areaShape');
-    svgOverlay.appendChild(poly);
-    let patPoly = null;
-    if (item.pattern && item.pattern !== 'none'){
-      patPoly = document.createElementNS(SVGNS,'polygon');
-      patPoly.style.pointerEvents = 'none';
-      svgOverlay.appendChild(patPoly);
-    }
-    const delBtn = document.createElement('div');
-    delBtn.className = 'shapeDelete';
-    delBtn.textContent = '×';
-    pageOuter.appendChild(delBtn);
-
-    const recolorBtn = document.createElement('div');
-    recolorBtn.className = 'shapeDelete shapeRecolor';
-    recolorBtn.textContent = '🎨';
-    recolorBtn.title = 'තෝරාගත් වර්ණය මෙම areaවලට යොදන්න';
-    pageOuter.appendChild(recolorBtn);
-
-    areaEls[item.id] = { poly, patPoly, delBtn, recolorBtn };
-    applyAreaStyle(item);
-
-    poly.addEventListener('pointerdown', function(e){
-      if (areaToolActive || drawingConnector || textDotMode!=null || textLineMode!=null || textLineDrawing) return;
-      e.stopPropagation();
-      selectShape(item.id, [delBtn, recolorBtn]);
-      const startPts = item.points.map(p=>({x:p.x,y:p.y}));
-      const startX=e.clientX, startY=e.clientY;
-      function onMove(ev){
-        const dxMm=(ev.clientX-startX)/pxPerMm, dyMm=(ev.clientY-startY)/pxPerMm;
-        item.points = startPts.map(p=>({x:p.x+dxMm,y:p.y+dyMm}));
-        applyAreaStyle(item);
-      }
-      function onUp(){
-        document.removeEventListener('pointermove',onMove);
-        document.removeEventListener('pointerup',onUp);
-        autoSave();
-      }
-      document.addEventListener('pointermove',onMove);
-      document.addEventListener('pointerup',onUp);
-    });
-    delBtn.addEventListener('pointerdown', e=>e.stopPropagation());
-    delBtn.addEventListener('click', function(e){ e.stopPropagation(); removeArea(item.id); });
-
-    recolorBtn.addEventListener('pointerdown', e=>e.stopPropagation());
-    recolorBtn.addEventListener('click', function(e){
-      e.stopPropagation();
-      // re-colors (and re-patterns) this already-drawn area using whatever
-      // is currently selected in the top color palette / pattern row
-      item.color = currentAreaColor;
-      item.pattern = currentAreaPattern;
-      applyAreaStyle(item);
-      autoSave();
-    });
-  }
-  function applyAreaStyle(item){
-    const refs = areaEls[item.id]; if(!refs) return;
-    const ptsStr = item.points.map(p=>p.x+','+p.y).join(' ');
-    refs.poly.setAttribute('points', ptsStr);
-    refs.poly.setAttribute('fill', hexToRgba(item.color,0.55));
-    if (item.pattern && item.pattern!=='none' && !refs.patPoly){
-      refs.patPoly = document.createElementNS(SVGNS,'polygon');
-      refs.patPoly.style.pointerEvents = 'none';
-      svgOverlay.appendChild(refs.patPoly);
-    }
-    if (refs.patPoly){
-      refs.patPoly.setAttribute('points', ptsStr);
-      refs.patPoly.setAttribute('fill', item.pattern && item.pattern!=='none' ? 'url(#pat-'+item.pattern+')' : 'none');
-    }
-    let sx=0,sy=0; item.points.forEach(p=>{sx+=p.x;sy+=p.y;});
-    const cx = sx/item.points.length, cy = sy/item.points.length;
-    refs.delBtn.style.left = cx+'mm';
-    refs.delBtn.style.top = cy+'mm';
-    refs.recolorBtn.style.left = cx+'mm';
-    refs.recolorBtn.style.top = cy+'mm';
-  }
-  function removeArea(id){
-    state.areas = state.areas.filter(a=>a.id!==id);
-    if (areaEls[id]){
-      areaEls[id].poly.remove();
-      if(areaEls[id].patPoly) areaEls[id].patPoly.remove();
-      areaEls[id].delBtn.remove();
-      areaEls[id].recolorBtn.remove();
-      delete areaEls[id];
-    }
-    autoSave();
-  }
-
-  /* ---------------- CONNECTOR TOOL (label-row squares: orthogonal dashed line + end dot) ---------------- */
-  let drawingConnector = null; // {points:[{x,y}]}
-  let previewPoly = null;
-
-  function snapOrtho(last, cur){
-    const dx = cur.x-last.x, dy = cur.y-last.y;
-    if (Math.abs(dx) >= Math.abs(dy)) return { x: cur.x, y: last.y };
-    return { x: last.x, y: cur.y };
-  }
-
-  function beginConnector(x,y){
-    drawingConnector = { points: [{x,y}] };
-    previewPoly = document.createElementNS(SVGNS,'polyline');
-    previewPoly.setAttribute('fill','none');
-    previewPoly.setAttribute('stroke','#000');
-    previewPoly.setAttribute('stroke-width','1.2');
-    previewPoly.setAttribute('stroke-linecap','round');
-    previewPoly.setAttribute('stroke-dasharray','0.1,1.6');
-    previewPoly.setAttribute('points', x+','+y);
-    svgOverlay.appendChild(previewPoly);
-    pageOuter.classList.add('mode-connector');
-  }
-  function currentMouseMm(e){
-    const rect = pageOuter.getBoundingClientRect();
-    return { x:(e.clientX-rect.left)/pxPerMm, y:(e.clientY-rect.top)/pxPerMm };
-  }
-  let lastSnap = null;
-  pageOuter.addEventListener('mousemove', function(e){
-    if (!drawingConnector) return;
-    const last = drawingConnector.points[drawingConnector.points.length-1];
-    const cur = currentMouseMm(e);
-    lastSnap = snapOrtho(last, cur);
-    const pts = drawingConnector.points.concat([lastSnap]);
-    previewPoly.setAttribute('points', pts.map(p=>p.x+','+p.y).join(' '));
-  });
-  pageOuter.addEventListener('click', function(e){
-    if (!drawingConnector) return;
-    if (!lastSnap) return;
-    drawingConnector.points.push(lastSnap);
-  });
-  pageOuter.addEventListener('dblclick', function(e){
-    if (!drawingConnector) return;
-    /* a dblclick is preceded by two 'click' events, so the click handler
-       above already appended a duplicate point for the 2nd click - drop it */
-    if (drawingConnector.points.length > 1) drawingConnector.points.pop();
-    /* recompute the exact final point from this dblclick's own coordinates
-       (rather than the last cached mousemove snap) so the black dot lands
-       precisely where the pointer tip is, not slightly off from it */
-    const prev = drawingConnector.points[drawingConnector.points.length-1];
-    const cur = currentMouseMm(e);
-    const exact = snapOrtho(prev, cur);
-    drawingConnector.points.push(exact);
-    finalizeConnector();
-  });
-  document.addEventListener('keydown', function(e){
-    if (e.key !== 'Escape') return;
-    if (drawingConnector){
-      if (previewPoly) previewPoly.remove();
-      drawingConnector = null; lastSnap = null;
-      pageOuter.classList.remove('mode-connector');
-    }
-    if (textLineDrawing || textLineMode){ cancelTextLineDrawing(); }
-    if (textDotMode!=null){ textDotMode = null; }
-    if (textFreehandMode!=null){ textFreehandMode = null; pageOuter.classList.remove('mode-freehand'); }
-    updatePanPadVisibility();
-  });
-  function finalizeConnector(){
-    if (previewPoly) previewPoly.remove();
-    previewPoly = null;
-    if (drawingConnector.points.length >= 2){
-      const item = { id: idCounter++, type:'connector', points: drawingConnector.points };
-      state.connectors.push(item);
-      buildConnectorEl(item);
-      autoSave();
-    }
-    drawingConnector = null; lastSnap = null;
-    pageOuter.classList.remove('mode-connector');
-  }
-
-  function buildConnectorEl(item){
-    const hit = document.createElementNS(SVGNS,'polyline');
-    hit.setAttribute('class','connectorHit');
-    hit.setAttribute('fill','none'); hit.setAttribute('stroke','transparent'); hit.setAttribute('stroke-width','3.5');
-    const visible = document.createElementNS(SVGNS,'polyline');
-    visible.setAttribute('class','connectorVisible');
-    visible.setAttribute('fill','none'); visible.setAttribute('stroke','#000');
-    visible.setAttribute('stroke-width','1.2'); visible.setAttribute('stroke-linecap','round');
-    visible.setAttribute('stroke-dasharray','0.1,1.6');
-    const dot = document.createElementNS(SVGNS,'circle');
-    dot.setAttribute('class','connectorDot'); dot.setAttribute('fill','#000'); dot.setAttribute('r', DOT_R);
-    svgOverlay.appendChild(hit); svgOverlay.appendChild(visible); svgOverlay.appendChild(dot);
-    const delBtn = document.createElement('div');
-    delBtn.className = 'shapeDelete'; delBtn.textContent = '×';
-    pageOuter.appendChild(delBtn);
-    connectorEls[item.id] = { hit, visible, dot, delBtn };
-    applyConnectorStyle(item);
-
-    hit.addEventListener('mousedown', function(e){
-      if (drawingConnector || areaToolActive) return;
-      e.stopPropagation();
-      selectShape(item.id, [delBtn]);
-      const startPts = item.points.map(p=>({x:p.x,y:p.y}));
-      const startX=e.clientX, startY=e.clientY;
-      function onMove(ev){
-        const dxMm=(ev.clientX-startX)/pxPerMm, dyMm=(ev.clientY-startY)/pxPerMm;
-        item.points = startPts.map(p=>({x:p.x+dxMm,y:p.y+dyMm}));
-        applyConnectorStyle(item);
-      }
-      function onUp(){
-        document.removeEventListener('mousemove',onMove);
-        document.removeEventListener('mouseup',onUp);
-        autoSave();
-      }
-      document.addEventListener('mousemove',onMove);
-      document.addEventListener('mouseup',onUp);
-    });
-    delBtn.addEventListener('mousedown', e=>e.stopPropagation());
-    delBtn.addEventListener('click', function(e){ e.stopPropagation(); removeConnector(item.id); });
-  }
-  function applyConnectorStyle(item){
-    const refs = connectorEls[item.id]; if(!refs) return;
-    const attr = item.points.map(p=>p.x+','+p.y).join(' ');
-    refs.hit.setAttribute('points', attr);
-    refs.visible.setAttribute('points', attr);
-    const last = item.points[item.points.length-1];
-    refs.dot.setAttribute('cx', last.x); refs.dot.setAttribute('cy', last.y);
-    refs.delBtn.style.left = last.x+'mm'; refs.delBtn.style.top = last.y+'mm';
-  }
-  function removeConnector(id){
-    state.connectors = state.connectors.filter(c=>c.id!==id);
-    if (connectorEls[id]){
-      const r=connectorEls[id];
-      r.hit.remove(); r.visible.remove(); r.dot.remove(); r.delBtn.remove();
-      delete connectorEls[id];
-    }
-    autoSave();
-  }
-
-  /* ================================================================
-     TEXT TOOL
-     - "📝 Text Tool" toggled on: tapping anywhere on the map opens a new
-       text box (placeholder "add text") that you can type into.
-     - The moment a text box appears, a small palette with a Dot Tool (●)
-       and a Line Tool (┃) opens right above it.
-       - Dot Tool: next tap on the map places a black dot there.
-       - Line Tool: click the starting point, each further single tap adds
-         a 90°-snapped turn, and a long-press/long-click finishes the line
-         - the line finishes with a dot 3x the line's thickness.
-     ================================================================ */
-  let textToolActive = false;
-  const btnTextTool = document.getElementById('btnTextTool');
-  btnTextTool.addEventListener('click', function(){
-    textToolActive = !textToolActive;
-    btnTextTool.classList.toggle('active', textToolActive);
-    pageOuter.classList.toggle('mode-text', textToolActive);
-    if (textToolActive){
-      areaToolActive = false; btnAreaTool.classList.remove('active'); pageOuter.classList.remove('mode-area');
-      cancelTextLineDrawing(); textDotMode = null;
-      textFreehandMode = null; pageOuter.classList.remove('mode-freehand');
-    }
-    updatePanPadVisibility();
-  });
-
-  let textDotMode = null;      // freeText id waiting for a dot placement tap
-  let textLineMode = null;     // freeText id waiting for the line's first tap
-  let textLineDrawing = null;  // {itemId, points:[...]} - actively being drawn
-  let textLinePreview = null;
-  let textLineLastSnap = null;
-  let longPressTimer = null;
-  let textLineLastClickTime = 0;   // used to detect a double-click finishing the line
-  let textLineLastClickPos = null;
-  const DBLCLICK_MS = 350;
-  const DBLCLICK_DIST_PX = 8;
-  let textFreehandMode = null; // freeText id waiting for a freehand stroke to be drawn
-
-  function startTextDotMode(itemId){
-    cancelTextLineDrawing();
-    areaToolActive = false; btnAreaTool.classList.remove('active'); pageOuter.classList.remove('mode-area');
-    textToolActive = false; btnTextTool.classList.remove('active'); pageOuter.classList.remove('mode-text');
-    textFreehandMode = null; pageOuter.classList.remove('mode-freehand');
-    textDotMode = itemId;
-    updatePanPadVisibility();
-  }
-  function startTextLineMode(itemId){
-    cancelTextLineDrawing();
-    areaToolActive = false; btnAreaTool.classList.remove('active'); pageOuter.classList.remove('mode-area');
-    textToolActive = false; btnTextTool.classList.remove('active'); pageOuter.classList.remove('mode-text');
-    textFreehandMode = null; pageOuter.classList.remove('mode-freehand');
-    textDotMode = null;
-    textLineMode = itemId;
-    textLineLastClickTime = 0; textLineLastClickPos = null;
-    pageOuter.classList.add('mode-connector');
-    updatePanPadVisibility();
-  }
-  function startTextFreehandMode(itemId){
-    cancelTextLineDrawing();
-    areaToolActive = false; btnAreaTool.classList.remove('active'); pageOuter.classList.remove('mode-area');
-    textToolActive = false; btnTextTool.classList.remove('active'); pageOuter.classList.remove('mode-text');
-    textDotMode = null;
-    textFreehandMode = itemId;
-    pageOuter.classList.add('mode-freehand');
-    updatePanPadVisibility();
-  }
-  function cancelTextLineDrawing(){
-    if (textLinePreview){ textLinePreview.remove(); textLinePreview=null; }
-    if (longPressTimer){ clearTimeout(longPressTimer); longPressTimer=null; }
-    textLineMode = null;
-    textLineDrawing = null;
-    textLineLastSnap = null;
-    textLineLastClickTime = 0; textLineLastClickPos = null;
-    pageOuter.classList.remove('mode-connector');
-  }
-  function finalizeTextLine(withDot){
-    if (textLinePreview){ textLinePreview.remove(); textLinePreview=null; }
-    const drawing = textLineDrawing;
-    textLineDrawing = null;
-    textLineLastClickTime = 0; textLineLastClickPos = null;
-    pageOuter.classList.remove('mode-connector');
-    if (!drawing || drawing.points.length < 2) return;
-    const item = state.freeTexts.find(f=>f.id===drawing.itemId);
-    if (!item) return;
-    item.connector = { points: drawing.points, dot: !!withDot };
-    renderFreeTextConnector(item);
-    autoSave();
-  }
-
-  // 1) create a new free text box wherever the map is tapped, while Text Tool is active
-  pageOuter.addEventListener('pointerdown', function(e){
-    if (!textToolActive) return;
-    if (drawingConnector || textLineDrawing || textLineMode!=null || textDotMode!=null || textFreehandMode!=null) return;
-    if (!isBackgroundTarget(e.target)) return;
-    e.preventDefault();
-    updatePxPerMm();
-    const rect = pageOuter.getBoundingClientRect();
-    const pt = { x:(e.clientX-rect.left)/pxPerMm, y:(e.clientY-rect.top)/pxPerMm };
-    const item = { id: idCounter++, x: pt.x, y: pt.y, text:'', dot:null, connector:null };
-    state.freeTexts.push(item);
-    buildFreeTextEl(item);
-    autoSave();
-    const refs = freeTextEls[item.id];
-    if (refs) enterRowEdit(refs.textEl, item);
-  });
-
-  // 2) Dot Tool: next tap on the map places a black dot for the armed item
-  pageOuter.addEventListener('pointerdown', function(e){
-    if (textDotMode==null) return;
-    if (e.target.closest && e.target.closest('.miniPalette')) return;
-    e.preventDefault();
-    updatePxPerMm();
-    const rect = pageOuter.getBoundingClientRect();
-    const pt = { x:(e.clientX-rect.left)/pxPerMm, y:(e.clientY-rect.top)/pxPerMm };
-    const item = state.freeTexts.find(f=>f.id===textDotMode);
-    if (item){ item.dot = pt; renderFreeTextDot(item); autoSave(); }
-    textDotMode = null;
-  });
-
-  // 3) Line Tool:
-  //    - first single click starts the line
-  //    - any further single click adds a 90°-snapped turn (bending toward
-  //      that click's position)
-  //    - a long-press/long-click finishes the line WITHOUT an end dot
-  //    - a double-click finishes the line WITH an end dot
-  function distPx(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
-  pageOuter.addEventListener('pointerdown', function(e){
-    if (textLineMode==null && textLineDrawing==null) return;
-    if (e.target.closest && e.target.closest('.miniPalette')) return;
-    if (areaToolActive) return;
-    e.preventDefault();
-    updatePxPerMm();
-    const rect = pageOuter.getBoundingClientRect();
-    const pt = { x:(e.clientX-rect.left)/pxPerMm, y:(e.clientY-rect.top)/pxPerMm };
-
-    if (textLineDrawing==null){
-      // first click: start the line
-      textLineDrawing = { itemId: textLineMode, points: [pt] };
-      textLineMode = null;
-      textLineLastClickTime = 0; textLineLastClickPos = null;
-      textLinePreview = document.createElementNS(SVGNS,'polyline');
-      textLinePreview.setAttribute('fill','none');
-      textLinePreview.setAttribute('stroke','#000');
-      textLinePreview.setAttribute('stroke-width', TEXTLINE_STROKE);
-      textLinePreview.setAttribute('stroke-linecap','round');
-      textLinePreview.setAttribute('stroke-dasharray','0.1,1.6');
-      textLinePreview.setAttribute('points', pt.x+','+pt.y);
-      svgOverlay.appendChild(textLinePreview);
-      return;
-    }
-
-    // subsequent clicks: a short tap adds a 90°-snapped turn point (or, if
-    // it lands as the second click of a double-click, finishes the line
-    // WITH an end dot); a long-press (hold without moving) finishes the
-    // line WITHOUT an end dot.
-    const last = textLineDrawing.points[textLineDrawing.points.length-1];
-    textLineLastSnap = snapOrtho(last, pt);
-    let longPressFired = false;
-    const startClientX = e.clientX, startClientY = e.clientY;
-
-    function onMove(ev){
-      if (Math.hypot(ev.clientX-startClientX, ev.clientY-startClientY) > LONG_PRESS_MOVE_TOLERANCE){
-        if (longPressTimer){ clearTimeout(longPressTimer); longPressTimer=null; }
-      }
-      const curPt = { x:(ev.clientX-rect.left)/pxPerMm, y:(ev.clientY-rect.top)/pxPerMm };
-      textLineLastSnap = snapOrtho(last, curPt);
-      const pts = textLineDrawing.points.concat([textLineLastSnap]);
-      textLinePreview.setAttribute('points', pts.map(p=>p.x+','+p.y).join(' '));
-    }
-    function onUp(ev){
-      pageOuter.removeEventListener('pointermove', onMove);
-      pageOuter.removeEventListener('pointerup', onUp);
-      pageOuter.removeEventListener('pointercancel', onUp);
-      if (longPressTimer){ clearTimeout(longPressTimer); longPressTimer=null; }
-      if (longPressFired) return;
-
-      const upTime = Date.now();
-      const clickPos = { x: ev.clientX, y: ev.clientY };
-      const isDoubleClick = textLineLastClickPos!=null &&
-        (upTime - textLineLastClickTime) < DBLCLICK_MS &&
-        distPx(clickPos, textLineLastClickPos) < DBLCLICK_DIST_PX;
-
-      if (isDoubleClick){
-        // second click of a double-click: drop the provisional turn point
-        // that the first click of the pair added, then finish the line
-        // here, WITH an end dot
-        if (textLineDrawing.points.length > 1) textLineDrawing.points.pop();
-        textLineDrawing.points.push(textLineLastSnap);
-        finalizeTextLine(true);
-        return;
-      }
-
-      // normal single click: add a turn point and keep drawing
-      textLineDrawing.points.push(textLineLastSnap);
-      textLinePreview.setAttribute('points', textLineDrawing.points.map(p=>p.x+','+p.y).join(' '));
-      textLineLastClickTime = upTime;
-      textLineLastClickPos = clickPos;
-    }
-    function fireLongPress(){
-      longPressFired = true;
-      pageOuter.removeEventListener('pointermove', onMove);
-      pageOuter.removeEventListener('pointerup', onUp);
-      pageOuter.removeEventListener('pointercancel', onUp);
-      textLineDrawing.points.push(textLineLastSnap);
-      finalizeTextLine(false);
-    }
-    longPressTimer = setTimeout(fireLongPress, LONG_PRESS_MS);
-    pageOuter.addEventListener('pointermove', onMove);
-    pageOuter.addEventListener('pointerup', onUp);
-    pageOuter.addEventListener('pointercancel', onUp);
-  });
-
-  // 4) Freehand Tool: press-drag-release to draw a free-form stroke (e.g. a
-  //    river outline) on the map for the armed free text item
-  pageOuter.addEventListener('pointerdown', function(e){
-    if (textFreehandMode==null) return;
-    if (e.target.closest && e.target.closest('.miniPalette')) return;
-    e.preventDefault();
-    try{ pageOuter.setPointerCapture(e.pointerId); }catch(err){}
-    updatePxPerMm();
-    const rect = pageOuter.getBoundingClientRect();
-    const start = { x:(e.clientX-rect.left)/pxPerMm, y:(e.clientY-rect.top)/pxPerMm };
-    const points = [start];
-    const itemId = textFreehandMode;
-    textFreehandMode = null;
-    pageOuter.classList.remove('mode-freehand');
-    updatePanPadVisibility();
-
-    const poly = document.createElementNS(SVGNS,'polyline');
-    poly.setAttribute('fill','none');
-    poly.setAttribute('stroke','#000');
-    poly.setAttribute('stroke-width', TEXTLINE_STROKE);
-    poly.setAttribute('stroke-linecap','round');
-    poly.setAttribute('stroke-linejoin','round');
-    poly.setAttribute('points', start.x+','+start.y);
-    svgOverlay.appendChild(poly);
-
-    function onMove(ev){
-      const x=(ev.clientX-rect.left)/pxPerMm, y=(ev.clientY-rect.top)/pxPerMm;
-      const last = points[points.length-1];
-      if (Math.hypot(x-last.x,y-last.y) < 0.6) return;
-      points.push({x,y});
-      poly.setAttribute('points', points.map(p=>p.x+','+p.y).join(' '));
-    }
-    function onUp(){
-      pageOuter.removeEventListener('pointermove', onMove);
-      pageOuter.removeEventListener('pointerup', onUp);
-      pageOuter.removeEventListener('pointercancel', onUp);
-      poly.remove();
-      if (points.length >= 2){
-        const item = state.freeTexts.find(f=>f.id===itemId);
-        if (item){
-          if (!item.freehands) item.freehands = [];
-          item.freehands.push({ id: idCounter++, points });
-          renderFreeTextFreehands(item);
-          autoSave();
-        }
-      }
-    }
-    pageOuter.addEventListener('pointermove', onMove);
-    pageOuter.addEventListener('pointerup', onUp);
-    pageOuter.addEventListener('pointercancel', onUp);
-  });
-
-  function buildFreeTextEl(item){
-    const wrap = document.createElement('div');
-    wrap.className = 'freeTextWrap';
-    wrap.style.left = item.x+'mm';
-    wrap.style.top = item.y+'mm';
-
-    const palette = document.createElement('div');
-    palette.className = 'miniPalette';
-
-    const dotBtn = document.createElement('div');
-    dotBtn.className = 'miniBtn miniDotBtn';
-    dotBtn.title = 'Dot Tool';
-    dotBtn.innerHTML = '<span class="miniDot"></span>';
-
-    const lineBtn = document.createElement('div');
-    lineBtn.className = 'miniBtn miniLineBtn';
-    lineBtn.title = 'Line Tool';
-    lineBtn.innerHTML = '<span class="miniLine"></span>';
-
-    const freehandBtn = document.createElement('div');
-    freehandBtn.className = 'miniBtn miniFreehandBtn';
-    freehandBtn.title = 'Freehand Tool (e.g. draw a river shape)';
-    freehandBtn.innerHTML = '<span class="miniFreehand"><svg viewBox="0 0 18 14" width="18" height="14"><path d="M1,10 Q4,2 7,8 T13,6 T17,10" stroke="#e21b1b" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg></span>';
-
-    palette.appendChild(dotBtn);
-    palette.appendChild(lineBtn);
-    palette.appendChild(freehandBtn);
-
-    const moveHandle = document.createElement('div');
-    moveHandle.className = 'moveHandle';
-    moveHandle.title = 'ස්ථානය මාරු කරන්න (Move)';
-    moveHandle.textContent = '✥';
-
-    const textEl = document.createElement('div');
-    textEl.className = 'rowText';
-    textEl.contentEditable = 'false';
-    textEl.textContent = item.text;
-    if (item.text) textEl.classList.add('filled');
-
-    const delBtn = document.createElement('div');
-    delBtn.className = 'rowDelete';
-    delBtn.textContent = '×';
-    delBtn.style.left = 'auto'; delBtn.style.right = '-8px';
-
-    wrap.appendChild(palette);
-    wrap.appendChild(moveHandle);
-    wrap.appendChild(textEl);
-    wrap.appendChild(delBtn);
-    pageOuter.appendChild(wrap);
-    freeTextEls[item.id] = { wrap, textEl, delBtn, palette, dotBtn, lineBtn, freehandBtn, moveHandle, dotEl:null, connVisible:null, connDot:null, freehandEls:[] };
-
-    // dedicated move handle: press-drag anywhere on this icon to reposition
-    // the text box without touching (or entering edit mode on) the text
-    moveHandle.addEventListener('pointerdown', function(e){
-      e.stopPropagation();
-      e.preventDefault();
-      try{ moveHandle.setPointerCapture(e.pointerId); }catch(err){}
-      updatePxPerMm();
-      const startClientX=e.clientX, startClientY=e.clientY;
-      const startX=item.x, startY=item.y;
-      function onMove(ev){
-        const dxMm=(ev.clientX-startClientX)/pxPerMm, dyMm=(ev.clientY-startClientY)/pxPerMm;
-        item.x = startX+dxMm; item.y = startY+dyMm;
-        wrap.style.left = item.x+'mm'; wrap.style.top = item.y+'mm';
-      }
-      function onUp(){
-        moveHandle.removeEventListener('pointermove', onMove);
-        moveHandle.removeEventListener('pointerup', onUp);
-        moveHandle.removeEventListener('pointercancel', onUp);
-        autoSave();
-      }
-      moveHandle.addEventListener('pointermove', onMove);
-      moveHandle.addEventListener('pointerup', onUp);
-      moveHandle.addEventListener('pointercancel', onUp);
-    });
-
-    // drag the text box around, or tap it once to edit its text
-    textEl.addEventListener('pointerdown', function(e){
-      if (textEl.classList.contains('editing')) return;
-      e.stopPropagation();
-      const startClientX=e.clientX, startClientY=e.clientY;
-      const startX=item.x, startY=item.y;
-      let moved=false;
-      function onMove(ev){
-        const dxMm=(ev.clientX-startClientX)/pxPerMm, dyMm=(ev.clientY-startClientY)/pxPerMm;
-        if (Math.abs(dxMm)>1 || Math.abs(dyMm)>1) moved=true;
-        if (moved){
-          item.x = startX+dxMm; item.y = startY+dyMm;
-          wrap.style.left = item.x+'mm'; wrap.style.top = item.y+'mm';
-        }
-      }
-      function onUp(){
-        document.removeEventListener('pointermove',onMove);
-        document.removeEventListener('pointerup',onUp);
-        if (moved) autoSave();
-        else enterRowEdit(textEl, item);
-      }
-      document.addEventListener('pointermove',onMove);
-      document.addEventListener('pointerup',onUp);
-    });
-
-    dotBtn.addEventListener('pointerdown', e=>e.stopPropagation());
-    dotBtn.addEventListener('click', function(e){ e.stopPropagation(); startTextDotMode(item.id); });
-    lineBtn.addEventListener('pointerdown', e=>e.stopPropagation());
-    lineBtn.addEventListener('click', function(e){ e.stopPropagation(); startTextLineMode(item.id); });
-    freehandBtn.addEventListener('pointerdown', e=>e.stopPropagation());
-    freehandBtn.addEventListener('click', function(e){ e.stopPropagation(); startTextFreehandMode(item.id); });
-
-    delBtn.addEventListener('pointerdown', e=>e.stopPropagation());
-    delBtn.addEventListener('click', function(e){ e.stopPropagation(); removeFreeText(item.id); });
-
-    if (item.dot) renderFreeTextDot(item);
-    if (item.connector) renderFreeTextConnector(item);
-    if (item.freehands && item.freehands.length) renderFreeTextFreehands(item);
-  }
-
-  function renderFreeTextDot(item){
-    const refs = freeTextEls[item.id]; if(!refs) return;
-    if (refs.dotEl) refs.dotEl.remove();
-    const dot = document.createElementNS(SVGNS,'circle');
-    dot.setAttribute('r', TEXT_DOT_R);
-    dot.setAttribute('fill', '#000');
-    dot.setAttribute('cx', item.dot.x);
-    dot.setAttribute('cy', item.dot.y);
-    svgOverlay.appendChild(dot);
-    refs.dotEl = dot;
-  }
-  function renderFreeTextConnector(item){
-    const refs = freeTextEls[item.id]; if(!refs) return;
-    if (refs.connVisible) refs.connVisible.remove();
-    if (refs.connDot) refs.connDot.remove();
-    const pts = item.connector.points;
-    const poly = document.createElementNS(SVGNS,'polyline');
-    poly.setAttribute('fill','none');
-    poly.setAttribute('stroke','#000');
-    poly.setAttribute('stroke-width', TEXTLINE_STROKE);
-    poly.setAttribute('stroke-linecap','round');
-    poly.setAttribute('stroke-dasharray','0.1,1.6');
-    poly.setAttribute('points', pts.map(p=>p.x+','+p.y).join(' '));
-    svgOverlay.appendChild(poly);
-    refs.connVisible = poly;
-    // older saves predate the "dot" flag and always had an end dot, so
-    // default to showing one unless explicitly set to false
-    const showDot = item.connector.dot !== false;
-    if (showDot){
-      const last = pts[pts.length-1];
-      const dot = document.createElementNS(SVGNS,'circle');
-      dot.setAttribute('r', TEXTLINE_END_R);
-      dot.setAttribute('fill', '#000');
-      dot.setAttribute('cx', last.x); dot.setAttribute('cy', last.y);
-      svgOverlay.appendChild(dot);
-      refs.connDot = dot;
-    } else {
-      refs.connDot = null;
-    }
-  }
-  function renderFreeTextFreehands(item){
-    const refs = freeTextEls[item.id]; if(!refs) return;
-    if (refs.freehandEls){ refs.freehandEls.forEach(function(fe){ fe.remove(); }); }
-    refs.freehandEls = [];
-    (item.freehands||[]).forEach(function(fh){
-      const poly = document.createElementNS(SVGNS,'polyline');
-      poly.setAttribute('fill','none');
-      poly.setAttribute('stroke','#000');
-      poly.setAttribute('stroke-width', TEXTLINE_STROKE);
-      poly.setAttribute('stroke-linecap','round');
-      poly.setAttribute('stroke-linejoin','round');
-      poly.setAttribute('points', fh.points.map(p=>p.x+','+p.y).join(' '));
-      svgOverlay.appendChild(poly);
-      refs.freehandEls.push(poly);
-    });
-  }
-  function removeFreeText(id){
-    state.freeTexts = state.freeTexts.filter(f=>f.id!==id);
-    const refs = freeTextEls[id];
-    if (refs){
-      refs.wrap.remove();
-      if (refs.dotEl) refs.dotEl.remove();
-      if (refs.connVisible) refs.connVisible.remove();
-      if (refs.connDot) refs.connDot.remove();
-      if (refs.freehandEls) refs.freehandEls.forEach(function(fe){ fe.remove(); });
-      delete freeTextEls[id];
-    }
-    if (textDotMode===id) textDotMode=null;
-    if (textLineMode===id) textLineMode=null;
-    if (textLineDrawing && textLineDrawing.itemId===id) cancelTextLineDrawing();
-    if (textFreehandMode===id){ textFreehandMode=null; pageOuter.classList.remove('mode-freehand'); }
-    updatePanPadVisibility();
-    autoSave();
-  }
-
-  /* ---------------- MAP TITLE (above the border frame) ---------------- */
-  mapTitleEl.addEventListener('mousedown', function(e){
-    if (drawingConnector) return;
-    if (mapTitleEl.classList.contains('editing')) return;
-    e.stopPropagation();
-    if (areaToolActive){
-      areaToolActive = false;
-      btnAreaTool.classList.remove('active');
-      pageOuter.classList.remove('mode-area');
-    }
-    if (textToolActive){
-      textToolActive = false;
-      btnTextTool.classList.remove('active');
-      pageOuter.classList.remove('mode-text');
-    }
-    updatePanPadVisibility();
-  });
-  mapTitleEl.addEventListener('click', function(e){
-    if (drawingConnector || mapTitleEl.classList.contains('editing')) return;
-    enterTitleEdit();
-  });
-  function enterTitleEdit(){
-    mapTitleEl.contentEditable = 'true';
-    mapTitleEl.classList.add('editing');
-    mapTitleEl.focus();
-    const range = document.createRange(); range.selectNodeContents(mapTitleEl); range.collapse(false);
-    const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
-    function finish(){
-      mapTitleEl.contentEditable = 'false';
-      mapTitleEl.classList.remove('editing');
-      state.title = (mapTitleEl.textContent || '').trim();
-      mapTitleEl.textContent = state.title;
-      mapTitleEl.removeEventListener('blur', finish);
-      autoSave();
-    }
-    mapTitleEl.addEventListener('blur', finish);
-    mapTitleEl.addEventListener('keydown', function(ev){
-      if (ev.key==='Enter'){ ev.preventDefault(); mapTitleEl.blur(); }
-      if (ev.key==='Escape'){ mapTitleEl.blur(); }
-    });
-  }
-
-  /* ---------------- LABEL ROWS (left / right stacked columns) ----------------
-     Up to 4 physical column stacks: L1 (outer-left), L2 (inner-left, landscape
-     only), R2 (inner-right, landscape only), R1 (outer-right). L1/L2 both face
-     the map with the red square on their right; R2/R1 both face the map with
-     the red square on their left - so they reuse the same "left"/"right" CSS
-     classes as before, just stored in separate arrays so each column stacks
-     its own rows independently. */
-  const COLUMN_DEFS = {
-    L1: { side:'left',  rowsKey:'left'  },
-    L2: { side:'left',  rowsKey:'left2' },
-    R2: { side:'right', rowsKey:'right2' },
-    R1: { side:'right', rowsKey:'right' }
-  };
-  function legacyColFor(side){ return side==='left' ? 'L1' : 'R1'; }
-
-  function addRow(colId){
-    const def = COLUMN_DEFS[colId];
-    const arr = state.rows[def.rowsKey] || (state.rows[def.rowsKey] = []);
-    const row = { id: idCounter++, side: def.side, col: colId, top: ROW_TOP0 + arr.length*ROW_STEP, anchor: colAnchorMm(colId), text:'' };
-    arr.push(row);
-    buildRowEl(row);
-    autoSave();
-    return row;
-  }
-  plusLeft.querySelector('.plusBox').addEventListener('click', ()=>addRow('L1'));
-  plusRight.querySelector('.plusBox').addEventListener('click', ()=>addRow('R1'));
-  plusLeft2.querySelector('.plusBox').addEventListener('click', ()=>addRow('L2'));
-  plusRight2.querySelector('.plusBox').addEventListener('click', ()=>addRow('R2'));
-
-  function buildRowEl(row){
-    const wrap = document.createElement('div');
-    wrap.className = 'labelRow ' + row.side;
-    wrap.dataset.id = row.id; wrap.dataset.side = row.side;
-    wrap.style.top = row.top+'mm';
-    if (row.side === 'left') wrap.style.left = row.anchor+'mm';
-    else wrap.style.right = row.anchor+'mm';
-
-    const textEl = document.createElement('div');
-    textEl.className = 'rowText';
-    textEl.contentEditable = 'false';
-    textEl.textContent = row.text;
-    if (row.text) textEl.classList.add('filled');
-
-    const square = document.createElement('div');
-    square.className = 'rowSquare';
-
-    const delBtn = document.createElement('div');
-    delBtn.className = 'rowDelete'; delBtn.textContent = '×';
-
-    wrap.appendChild(textEl); wrap.appendChild(square); wrap.appendChild(delBtn);
-    pageOuter.appendChild(wrap);
-    rowEls[row.id] = { wrap, textEl, delBtn };
-
-    /* drag row (from the text box) vs click-to-edit */
-    textEl.addEventListener('mousedown', function(e){
-      if (drawingConnector) return;
-      if (textEl.classList.contains('editing')) return;
-      e.stopPropagation();
-      if (areaToolActive){
-        /* clicking a text box always means "I want to type", even if the
-           area tool is still selected - drop out of area mode and edit */
-        areaToolActive = false;
-        btnAreaTool.classList.remove('active');
-        pageOuter.classList.remove('mode-area');
-        updatePanPadVisibility();
-        enterRowEdit(textEl, row);
-        return;
-      }
-      const startClientX=e.clientX, startClientY=e.clientY;
-      const startTop=row.top, startAnchor=row.anchor;
-      let moved=false;
-      function onMove(ev){
-        const dxMm=(ev.clientX-startClientX)/pxPerMm, dyMm=(ev.clientY-startClientY)/pxPerMm;
-        if (Math.abs(dxMm)>1 || Math.abs(dyMm)>1) moved=true;
-        if (moved){
-          row.top = startTop+dyMm;
-          row.anchor = row.side==='left' ? startAnchor+dxMm : startAnchor-dxMm;
-          wrap.style.top = row.top+'mm';
-          if (row.side==='left') wrap.style.left = row.anchor+'mm';
-          else wrap.style.right = row.anchor+'mm';
-        }
-      }
-      function onUp(){
-        document.removeEventListener('mousemove',onMove);
-        document.removeEventListener('mouseup',onUp);
-        if (moved) autoSave();
-        else enterRowEdit(textEl, row);
-      }
-      document.addEventListener('mousemove',onMove);
-      document.addEventListener('mouseup',onUp);
-    });
-
-    /* connector handle */
-    square.addEventListener('mousedown', function(e){
-      e.stopPropagation(); e.preventDefault();
-      if (drawingConnector || areaToolActive) return;
-      updatePxPerMm();
-      const rect = pageOuter.getBoundingClientRect();
-      const sqRect = square.getBoundingClientRect();
-      const sx = (sqRect.left + sqRect.width/2 - rect.left)/pxPerMm;
-      const sy = (sqRect.top + sqRect.height/2 - rect.top)/pxPerMm;
-      beginConnector(sx, sy);
-    });
-
-    delBtn.addEventListener('mousedown', e=>e.stopPropagation());
-    delBtn.addEventListener('click', function(e){ e.stopPropagation(); removeRow(row); });
-  }
-
-  function enterRowEdit(el, row){
-    el.classList.add('editing');
-    el.contentEditable = 'true';
-    el.focus();
-    const range = document.createRange(); range.selectNodeContents(el); range.collapse(false);
-    const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
-    function finish(){
-      el.contentEditable = 'false';
-      el.classList.remove('editing');
-      row.text = (el.textContent || '').trim();
-      el.textContent = row.text;
-      el.classList.toggle('filled', !!row.text);
-      el.removeEventListener('blur', finish);
-      autoSave();
-    }
-    el.addEventListener('blur', finish);
-    el.addEventListener('keydown', function(ev){
-      if (ev.key==='Enter' && !ev.shiftKey){ ev.preventDefault(); el.blur(); }
-      if (ev.key==='Escape'){ el.blur(); }
-    });
-  }
-
-  function removeRow(row){
-    const colId = row.col || legacyColFor(row.side);
-    const rowsKey = (COLUMN_DEFS[colId] || {}).rowsKey || row.side;
-    const arr = state.rows[rowsKey] || [];
-    state.rows[rowsKey] = arr.filter(r=>r.id!==row.id);
-    if (rowEls[row.id]){ rowEls[row.id].wrap.remove(); delete rowEls[row.id]; }
-    autoSave();
-  }
-
-  /* ---------------- MAP IMAGE ---------------- */
-  function fitImageToPage(naturalW, naturalH){
-    const availW = PAGE_W - BORDER*2, availH = PAGE_H - BORDER*2;
-    const ratio = naturalW/naturalH;
-    let w,h;
-    if (availW/availH > ratio){ h=availH; w=h*ratio; } else { w=availW; h=w/ratio; }
-    return { x: BORDER+(availW-w)/2, y: BORDER+(availH-h)/2, w, h };
-  }
-  function loadImageFromDataUrl(dataUrl, existingRect){
-    const im = new Image();
-    im.onload = function(){
-      const rect = existingRect || fitImageToPage(im.naturalWidth, im.naturalHeight);
-      state.image = { src:dataUrl, x:rect.x, y:rect.y, w:rect.w, h:rect.h, ratio: im.naturalWidth/im.naturalHeight };
-      renderImage();
-      autoSave();
-    };
-    im.src = dataUrl;
-  }
-  fileInput.addEventListener('change', function(e){
-    const f = e.target.files[0]; if (!f) return;
-    const reader = new FileReader();
-    reader.onload = ev => loadImageFromDataUrl(ev.target.result, null);
-    reader.readAsDataURL(f);
-    fileInput.value = '';
-  });
-  function renderImage(){
-    if (imgLayerEl){ imgLayerEl.remove(); imgLayerEl=null; }
-    if (!state.image) return;
-    imgLayerEl = document.createElement('div');
-    imgLayerEl.className = 'imageLayer';
-    applyImageStyle();
-    const imgEl = document.createElement('img');
-    imgEl.src = state.image.src;
-    imgLayerEl.appendChild(imgEl);
-    const handle = document.createElement('div');
-    handle.className = 'resizeHandle';
-    imgLayerEl.appendChild(handle);
-    pageOuter.insertBefore(imgLayerEl, svgOverlay);
-
-    /* Pointer Events (not mouse-only) so both dragging the map image and
-       resizing it via the corner handle work reliably with touch on
-       phones/tablets - mouse-only events are not always synthesized
-       promptly for small targets like the resize dot on mobile browsers,
-       and touch-action:none stops the page from intercepting the drag as
-       a scroll gesture. */
-    imgLayerEl.addEventListener('pointerdown', function(e){
-      if (e.target===handle || areaToolActive || drawingConnector || textToolActive || textDotMode!=null || textLineMode!=null || textLineDrawing || textFreehandMode!=null) return;
-      e.preventDefault(); e.stopPropagation();
-      try{ imgLayerEl.setPointerCapture(e.pointerId); }catch(err){}
-      updatePxPerMm();
-      const startX=e.clientX, startY=e.clientY, sx=state.image.x, sy=state.image.y;
-      function onMove(ev){
-        state.image.x = sx + (ev.clientX-startX)/pxPerMm;
-        state.image.y = sy + (ev.clientY-startY)/pxPerMm;
-        applyImageStyle();
-      }
-      function onUp(){
-        imgLayerEl.removeEventListener('pointermove',onMove);
-        imgLayerEl.removeEventListener('pointerup',onUp);
-        imgLayerEl.removeEventListener('pointercancel',onUp);
-        autoSave();
-      }
-      imgLayerEl.addEventListener('pointermove',onMove);
-      imgLayerEl.addEventListener('pointerup',onUp);
-      imgLayerEl.addEventListener('pointercancel',onUp);
-    });
-    handle.addEventListener('pointerdown', function(e){
-      e.stopPropagation(); e.preventDefault();
-      try{ handle.setPointerCapture(e.pointerId); }catch(err){}
-      updatePxPerMm();
-      const startX=e.clientX, startW=state.image.w, ratio=state.image.ratio;
-      function onMove(ev){
-        const newW = Math.max(10, startW + (ev.clientX-startX)/pxPerMm);
-        state.image.w = newW; state.image.h = newW/ratio;
-        applyImageStyle();
-      }
-      function onUp(){
-        handle.removeEventListener('pointermove',onMove);
-        handle.removeEventListener('pointerup',onUp);
-        handle.removeEventListener('pointercancel',onUp);
-        autoSave();
-      }
-      handle.addEventListener('pointermove',onMove);
-      handle.addEventListener('pointerup',onUp);
-      handle.addEventListener('pointercancel',onUp);
-    });
-  }
-  function applyImageStyle(){
-    if (!imgLayerEl) return;
-    imgLayerEl.style.left = state.image.x+'mm';
-    imgLayerEl.style.top = state.image.y+'mm';
-    imgLayerEl.style.width = state.image.w+'mm';
-    imgLayerEl.style.height = state.image.h+'mm';
-  }
-
-  /* ---------------- SAVE / OPEN / AUTOSAVE ---------------- */
-  function serialize(){
-    return JSON.stringify({ orientation, PAGE_W, PAGE_H, title: state.title, image: state.image, rows: state.rows, areas: state.areas, connectors: state.connectors, freeTexts: state.freeTexts });
-  }
-  function autoSave(){ try{ localStorage.setItem(STORAGE_KEY, serialize()); }catch(e){} }
-
-  function clearAll(){
-    Object.values(rowEls).forEach(r=>r.wrap.remove());
-    Object.values(areaEls).forEach(a=>{a.poly.remove(); if(a.patPoly)a.patPoly.remove(); a.delBtn.remove(); if(a.recolorBtn)a.recolorBtn.remove();});
-    Object.values(connectorEls).forEach(c=>{c.hit.remove(); c.visible.remove(); c.dot.remove(); c.delBtn.remove();});
-    Object.values(freeTextEls).forEach(f=>{
-      f.wrap.remove();
-      if (f.dotEl) f.dotEl.remove();
-      if (f.connVisible) f.connVisible.remove();
-      if (f.connDot) f.connDot.remove();
-      if (f.freehandEls) f.freehandEls.forEach(function(fe){ fe.remove(); });
-    });
-    Object.keys(rowEls).forEach(k=>delete rowEls[k]);
-    Object.keys(areaEls).forEach(k=>delete areaEls[k]);
-    Object.keys(connectorEls).forEach(k=>delete connectorEls[k]);
-    Object.keys(freeTextEls).forEach(k=>delete freeTextEls[k]);
-    if (imgLayerEl){ imgLayerEl.remove(); imgLayerEl=null; }
-    mapTitleEl.textContent = '';
-  }
-
-  function loadProjectData(data){
-    clearAll();
-    orientation = data.orientation || 'portrait';
-    PAGE_W = data.PAGE_W || 210; PAGE_H = data.PAGE_H || 297;
-    applyPageSize();
-    state = { title: data.title || '', image:null, rows:{left:[],left2:[],right2:[],right:[]}, areas: data.areas||[], connectors: data.connectors||[], freeTexts: data.freeTexts||[] };
-    mapTitleEl.textContent = state.title;
-    let maxId = 0;
-    ['left','left2','right2','right'].forEach(function(key){
-      (data.rows && data.rows[key] || []).forEach(function(r){
-        if (!r.col) r.col = legacyColFor(r.side); // older saves predate the extra columns
-        state.rows[key].push(r);
-        maxId = Math.max(maxId, r.id);
-      });
-    });
-    state.areas.forEach(a=>maxId=Math.max(maxId,a.id));
-    state.connectors.forEach(c=>maxId=Math.max(maxId,c.id));
-    state.freeTexts.forEach(function(f){
-      maxId=Math.max(maxId,f.id);
-      if (f.freehands) f.freehands.forEach(function(fh){ if (fh.id) maxId=Math.max(maxId, fh.id); });
-    });
-    idCounter = maxId+1;
-
-    if (data.image) loadImageFromDataUrl(data.image.src, {x:data.image.x,y:data.image.y,w:data.image.w,h:data.image.h});
-    ['left','left2','right2','right'].forEach(key => state.rows[key].forEach(buildRowEl));
-    state.areas.forEach(buildAreaEl);
-    state.connectors.forEach(buildConnectorEl);
-    state.freeTexts.forEach(buildFreeTextEl);
-  }
-
-  document.getElementById('btnSave').addEventListener('click', function(){
-    const uri = 'data:application/json;charset=utf-8,'+encodeURIComponent(serialize());
-    const a=document.createElement('a'); a.href=uri; a.download='geosketch-project.json'; a.click();
-  });
-  openInput.addEventListener('change', function(e){
-    const f=e.target.files[0]; if(!f) return;
-    const reader=new FileReader();
-    reader.onload=function(ev){
-      try{ const data=JSON.parse(ev.target.result); loadProjectData(data); autoSave(); }
-      catch(err){ alert('ගොනුව කියවීමට නොහැකි විය.'); }
-    };
-    reader.readAsText(f);
-    openInput.value='';
-  });
-
-  document.getElementById('btnReset').addEventListener('click', function(){
-    if (!confirm('සියලුම සිතියම් සහ ලකුණු කළ ස්ථාන මකා, මුල සිට ආරම්භ කරන්නද?')) return;
-    clearAll();
-    orientation = 'portrait';
-    PAGE_W = 210; PAGE_H = 297;
-    applyPageSize();
-    zoomLevel = 1; applyZoom();
-    state = { title:'', image:null, rows:{left:[],left2:[],right2:[],right:[]}, areas:[], connectors:[], freeTexts:[] };
-    idCounter = 1;
-    try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
-  });
-
-  /* Every fresh page load always starts blank - no auto-restore of a previous
-     session, even if something was auto-saved earlier. */
-
-  /* ---------------- EXPORT (drawn manually to canvas, decorative UI never included) ---------------- */
-  const canvasPatternCache = {};
-  function getCanvasPattern(ctx, type, ppm){
-    const key = type+'@'+ppm;
-    if (canvasPatternCache[key]) return canvasPatternCache[key];
-    const specs = { diagonal:{w:4,h:4}, grid:{w:4,h:4}, lines:{w:4,h:3}, wave:{w:6,h:3}, dots:{w:3,h:3} };
-    const spec = specs[type]; if (!spec) return '#000';
-    const w = Math.max(2, Math.round(spec.w*ppm)), h = Math.max(2, Math.round(spec.h*ppm));
-    const tile = document.createElement('canvas'); tile.width=w; tile.height=h;
-    const tctx = tile.getContext('2d');
-    tctx.strokeStyle = '#000'; tctx.fillStyle = '#000';
-    tctx.lineWidth = Math.max(1, 0.3*ppm);
-    tctx.lineCap = 'square';
-    if (type==='diagonal'){
-      tctx.beginPath(); tctx.moveTo(0,h); tctx.lineTo(w,0); tctx.stroke();
-    } else if (type==='grid'){
-      tctx.beginPath(); tctx.moveTo(0,0); tctx.lineTo(w,0); tctx.moveTo(0,0); tctx.lineTo(0,h); tctx.stroke();
-    } else if (type==='lines'){
-      tctx.beginPath(); tctx.moveTo(0,h/2); tctx.lineTo(w,h/2); tctx.stroke();
-    } else if (type==='wave'){
-      tctx.beginPath();
-      tctx.moveTo(0,h/2);
-      tctx.quadraticCurveTo(w*0.25,0, w*0.5,h/2);
-      tctx.quadraticCurveTo(w*0.75,h, w,h/2);
-      tctx.stroke();
-    } else if (type==='dots'){
-      tctx.beginPath(); tctx.arc(w/2,h/2, Math.max(1,0.4*ppm), 0, Math.PI*2); tctx.fill();
-    }
-    const pat = ctx.createPattern(tile,'repeat');
-    canvasPatternCache[key] = pat;
-    return pat;
-  }
-  function drawRoundedRectStroke(ctx,x,y,w,h,r){
-    ctx.beginPath();
-    ctx.moveTo(x+r,y);
-    ctx.arcTo(x+w,y,x+w,y+h,r);
-    ctx.arcTo(x+w,y+h,x,y+h,r);
-    ctx.arcTo(x,y+h,x,y,r);
-    ctx.arcTo(x,y,x+w,y,r);
-    ctx.closePath();
-    ctx.stroke();
-  }
-
-  function renderPageToCanvas(dpi){
-    return new Promise(function(resolve,reject){
-      const ppm = dpi/25.4;
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.round(PAGE_W*ppm);
-      canvas.height = Math.round(PAGE_H*ppm);
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#fff'; ctx.fillRect(0,0,canvas.width,canvas.height);
-
-      function finishDraw(){
-        // border frame
-        ctx.strokeStyle = '#000'; ctx.lineWidth = Math.max(1, 1.2*ppm/2.83);
-        drawRoundedRectStroke(ctx, BORDER*ppm, BORDER*ppm, canvas.width-2*BORDER*ppm, canvas.height-2*BORDER*ppm, 6*ppm);
-
-        // map title, printed above the border frame near the top edge
-        if (state.title){
-          const titleFontPx = 15 * (ppm*25.4/72);
-          ctx.font = '700 '+titleFontPx+'px "Noto Sans Sinhala","Segoe UI",Arial,sans-serif';
-          ctx.fillStyle = '#111';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(state.title, canvas.width/2, (BORDER/2)*ppm, canvas.width - 2*BORDER*ppm);
-        }
-
-        // area fills
-        state.areas.forEach(function(a){
-          ctx.save();
-          ctx.beginPath();
-          a.points.forEach((p,i)=>{ if(i===0) ctx.moveTo(p.x*ppm,p.y*ppm); else ctx.lineTo(p.x*ppm,p.y*ppm); });
-          ctx.closePath();
-          ctx.fillStyle = hexToRgba(a.color,0.55);
-          ctx.fill();
-          if (a.pattern && a.pattern !== 'none'){
-            ctx.clip();
-            ctx.fillStyle = getCanvasPattern(ctx, a.pattern, ppm);
-            ctx.fillRect(0,0,canvas.width,canvas.height);
-          }
-          ctx.restore();
-        });
-
-        // connectors: round-dot black line + end dot
-        state.connectors.forEach(function(c){
-          ctx.strokeStyle = '#000';
-          ctx.lineWidth = Math.max(1, 1.2*ppm/2.83);
-          ctx.lineCap = 'round';
-          ctx.setLineDash([0.001, 1.6*ppm/2.83*2]);
-          ctx.beginPath();
-          c.points.forEach((p,i)=>{ if(i===0) ctx.moveTo(p.x*ppm,p.y*ppm); else ctx.lineTo(p.x*ppm,p.y*ppm); });
-          ctx.stroke();
-          ctx.setLineDash([]);
-          ctx.lineCap = 'butt';
-          const last = c.points[c.points.length-1];
-          ctx.fillStyle = '#000';
-          ctx.beginPath(); ctx.arc(last.x*ppm, last.y*ppm, DOT_R*ppm, 0, Math.PI*2); ctx.fill();
-        });
-
-        // text-tool dots, lines & freehand strokes
-        state.freeTexts.forEach(function(item){
-          if (item.dot){
-            ctx.fillStyle = '#000';
-            ctx.beginPath(); ctx.arc(item.dot.x*ppm, item.dot.y*ppm, TEXT_DOT_R*ppm, 0, Math.PI*2); ctx.fill();
-          }
-          if (item.connector){
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = Math.max(1, TEXTLINE_STROKE*ppm/2.83);
-            ctx.lineCap = 'round';
-            ctx.setLineDash([0.001, 1.6*ppm/2.83*2]);
-            ctx.beginPath();
-            item.connector.points.forEach((p,i)=>{ if(i===0) ctx.moveTo(p.x*ppm,p.y*ppm); else ctx.lineTo(p.x*ppm,p.y*ppm); });
-            ctx.stroke();
-            ctx.setLineDash([]);
-            ctx.lineCap = 'butt';
-            const showDot = item.connector.dot !== false;
-            if (showDot){
-              const last = item.connector.points[item.connector.points.length-1];
-              ctx.fillStyle = '#000';
-              ctx.beginPath(); ctx.arc(last.x*ppm, last.y*ppm, TEXTLINE_END_R*ppm, 0, Math.PI*2); ctx.fill();
-            }
-          }
-          if (item.freehands && item.freehands.length){
-            item.freehands.forEach(function(fh){
-              ctx.strokeStyle = '#000';
-              ctx.lineWidth = Math.max(1, TEXTLINE_STROKE*ppm/2.83);
-              ctx.lineCap = 'round';
-              ctx.lineJoin = 'round';
-              ctx.beginPath();
-              fh.points.forEach((p,i)=>{ if(i===0) ctx.moveTo(p.x*ppm,p.y*ppm); else ctx.lineTo(p.x*ppm,p.y*ppm); });
-              ctx.stroke();
-            });
-          }
-        });
-
-        // rows: use live DOM geometry of the actual text box for exact fidelity
-        const pageRect = pageOuter.getBoundingClientRect();
-        const screenPpm = pageRect.width / PAGE_W;
-        const scale = ppm/screenPpm;
-        function drawRow(row){
-          if (!row.text) return;
-          const refs = rowEls[row.id]; if (!refs) return;
-          const r = refs.textEl.getBoundingClientRect();
-          const x = (r.left - pageRect.left)*scale, y=(r.top-pageRect.top)*scale;
-          const w = r.width*scale, h = r.height*scale;
-          const fontPx = 13.5 * (ppm*25.4/72) * 1.15;
-          ctx.font = fontPx+'px "Noto Sans Sinhala","Segoe UI",Arial,sans-serif';
-          ctx.fillStyle = '#111';
-          ctx.textBaseline = 'middle';
-          ctx.textAlign = 'left';
-          const pad = 5*ppm/2.83;
-          ctx.fillText(row.text, x+pad, y+h/2, w-2*pad);
-        }
-        state.rows.left.forEach(drawRow);
-        state.rows.left2.forEach(drawRow);
-        state.rows.right2.forEach(drawRow);
-        state.rows.right.forEach(drawRow);
-
-        // free-text labels (same live-geometry approach as label rows)
-        state.freeTexts.forEach(function(item){
-          if (!item.text) return;
-          const refs = freeTextEls[item.id]; if (!refs) return;
-          const r = refs.textEl.getBoundingClientRect();
-          const x = (r.left - pageRect.left)*scale, y=(r.top-pageRect.top)*scale;
-          const w = r.width*scale, h = r.height*scale;
-          const fontPx = 13.5 * (ppm*25.4/72) * 1.15;
-          ctx.font = fontPx+'px "Noto Sans Sinhala","Segoe UI",Arial,sans-serif';
-          ctx.fillStyle = '#111';
-          ctx.textBaseline = 'middle';
-          ctx.textAlign = 'left';
-          const pad = 5*ppm/2.83;
-          ctx.fillText(item.text, x+pad, y+h/2, w-2*pad);
-        });
-
-        // copyright credit, printed outside the border frame near the bottom edge
-        const creditFontPx = 10 * (ppm*25.4/72);
-        ctx.font = creditFontPx+'px "Noto Sans Sinhala","Segoe UI",Arial,sans-serif';
-        ctx.fillStyle = '#888888';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('www.eduhelp.lk  |  geosketch-2026', canvas.width/2, (PAGE_H - BORDER/2)*ppm);
-
-        resolve(canvas);
-      }
-
-      if (state.image){
-        const im = new Image();
-        im.onload = function(){
-          ctx.drawImage(im, state.image.x*ppm, state.image.y*ppm, state.image.w*ppm, state.image.h*ppm);
-          finishDraw();
-        };
-        im.onerror = ()=>reject(new Error('image load failed'));
-        im.src = state.image.src;
-      } else finishDraw();
-    });
-  }
-
-  document.getElementById('btnExportJpg').addEventListener('click', function(){
-    renderPageToCanvas(300).then(function(canvas){
-      const a=document.createElement('a');
-      a.href = canvas.toDataURL('image/jpeg',0.95);
-      a.download = 'geosketch-page.jpg'; a.click();
-    }).catch(err=>alert('Export අසාර්ථක විය: '+err.message));
-  });
-  document.getElementById('btnExportPdf').addEventListener('click', function(){
-    renderPageToCanvas(300).then(function(canvas){
-      if (!window.jspdf){ alert('PDF library load නොවීය.'); return; }
-      const { jsPDF } = window.jspdf;
-      const orient = PAGE_W > PAGE_H ? 'landscape' : 'portrait';
-      const pdf = new jsPDF({ unit:'mm', format:[PAGE_W,PAGE_H], orientation: orient });
-      pdf.addImage(canvas.toDataURL('image/jpeg',0.95), 'JPEG', 0, 0, PAGE_W, PAGE_H, undefined, 'FAST');
-      const a=document.createElement('a');
-      a.href = pdf.output('datauristring'); a.download = 'geosketch-page.pdf'; a.click();
-    }).catch(err=>alert('Export අසාර්ථක විය: '+err.message));
-  });
-
-  /* ---------------- HOW TO USE (opens a separate page) ---------------- */
-  document.getElementById('btnHowTo').addEventListener('click', function(){
-    const w = window.open('', '_blank');
-    if (!w){ alert('Popup blocked - please allow popups for this site to view the instructions.'); return; }
-    w.document.write(
-      '<!DOCTYPE html><html lang="si"><head><meta charset="UTF-8">' +
-      '<meta name="viewport" content="width=device-width, initial-scale=1.0">' +
-      '<title>How to use - EDUHELP-GeoSketch</title>' +
-      '<style>' +
-      'body{ margin:0; font-family:"Segoe UI","Noto Sans Sinhala",Arial,sans-serif; background:#e7e9ec; color:#1c1f26; }' +
-      '.wrap{ max-width:760px; margin:0 auto; padding:40px 24px 60px; }' +
-      'h1{ font-weight:400; font-size:28px; margin:0 0 22px; }' +
-      'h2{ font-weight:600; font-size:16px; margin:26px 0 6px; color:#28517d; }' +
-      'p{ font-size:15px; line-height:1.7; margin:6px 0; }' +
-      'ol.steps{ counter-reset:step; list-style:none; padding:0; margin:14px 0 0; }' +
-      'ol.steps > li{ position:relative; padding:2px 0 18px 46px; font-size:15.5px; line-height:1.7; }' +
-      'ol.steps > li:before{ counter-increment:step; content:counter(step); position:absolute; left:0; top:0; ' +
-      'width:30px; height:30px; border-radius:50%; background:#28517d; color:#fff; font-weight:700; ' +
-      'display:flex; align-items:center; justify-content:center; font-size:14px; }' +
-      'ul{ margin:6px 0; padding-left:20px; font-size:14.5px; line-height:1.7; }' +
-      '.tag{ display:inline-block; background:#eef1f5; border:1px solid #d8dbe0; border-radius:5px; padding:1px 7px; font-size:13.5px; }' +
-      '.note{ background:#fff7d6; border:1px solid #e9dd9a; border-radius:8px; padding:10px 14px; font-size:14px; margin:8px 0; }' +
-      '</style></head><body>' +
-      '<div class="wrap">' +
-      '<h1>භාවිතය සඳහා උපදෙස්</h1>' +
-
-      '<h2>ආරම්භයේදී කළ යුතු ප්‍රධාන පියවර දෙක</h2>' +
-      '<ol class="steps">' +
-        '<li><b>පළමුව කැන්වසය තෝරාගන්න.</b> ඔබේ සිතියම ලම්බකව (Portrait) හෝ තිරස්ව (Landscape) අඳින්නද කියා තීරණය කර, ' +
-        'එයට ගැලපෙන පිටුවක් ලබා ගැනීමට <span class="tag">🔄 Rotate Canvas</span> බොත්තම click/tap කරන්න. ' +
-        'අවශ්‍ය නම් පසුවත් මෙය click කර orientation එක වෙනස් කළ හැක.</li>' +
-        '<li><b>දෙවැනිව සිතියම තෝරා ගන්න.</b> <span class="tag">🗺️ Add map</span> click කර ලැයිස්තුවෙන් සූදානම් සිතියමක් තෝරන්න, ' +
-        'නැතහොත් ඔබේ device එකේ ඇති සිතියමේ image ගොනුව (jpg/png) upload කරන්න. එය කැන්වසය මතට ස්වයංක්‍රීයව ගැලපී පෙන්වයි. ' +
-        'පසුව එය අවශ්‍ය ලෙස ඇදගෙන (drag) ස්ථානගත කළ හැක, සහ දකුණු පහළ කෙළවරේ ඇති නිල් dot එකෙන් අදින්න (drag) ප්‍රමාණය වෙනස් කළ හැක.</li>' +
-      '</ol>' +
-
-      '<h2>සිතියම මාතෘකාව</h2>' +
-      '<p>සිතියම උඩ, border frame එකට ඉහළින් ඇති ස්ථානය click කර මාතෘකාව type කරන්න.</p>' +
-
-      '<h2>Legend / ලකුණු පේළි (side columns)</h2>' +
-      '<p>කැන්වසයේ දෙපැත්තේ ඇති <span class="tag">+</span> box එක click කිරීමෙන් නව ලකුණු පේළියක් (text box + රතු square එකක්) එකතු වේ.</p>' +
-      '<ul>' +
-        '<li>Text box එක click කර විස්තරය type කරන්න.</li>' +
-        '<li>Text box එක ඇදගෙන (drag) ස්ථානය මාරු කළ හැක.</li>' +
-        '<li>රතු square එක ඇදගෙන සිතියමේ අදාළ ස්ථානයට dashed රේඛාවක් ලෙස සම්බන්ධ කරන්න.</li>' +
-        '<li>Row එක mouse කරද්දි පෙන්වන × බොත්තමෙන් එය මකන්න.</li>' +
-      '</ul>' +
-
-      '<h2>◧ Area Tool</h2>' +
-      '<ol class="steps">' +
-        '<li>Area Tool තෝරන්න.</li>' +
-        '<li>ඉහළ ඇති පාට (color) සහ අවශ්‍ය නම් රටාව (pattern) තෝරන්න.</li>' +
-        '<li>සිතියම මතින් ඇඟිල්ල/mouse එක ඇද ප්‍රදේශය අඳින්න.</li>' +
-      '</ol>' +
-      '<p>Area tool එක මත ම යළි click කළ විට එයින් ඉවත් වියහැකි අතර ඉවත් පසු අඳින ලද ප්‍රදේශයක් click කර ඇදගෙන ස්ථානය මාරු කළ හැක, 🎨 බොත්තමෙන් නැවත වර්ණය/රටාව මාරු කළ හැක, ඒ සඳහා පළමුව අදාළ වර්ණය හෝ රටාව තෝරෙගෙන🎨 බොත්තම මත cilik කළ යුතු ය. × බොත්තමෙන් මකන්න.</p>' +
-
-      '<h2>📝 Text Tool</h2>' +
-      '<ol class="steps">' +
-        '<li>Text Tool තෝරන්න.</li>' +
-        '<li>සිතියම මතට tap කර නව text box එකක් එකතු කරන්න (✥ handle එකෙන් පසුව ඇදගෙන ස්ථානය මාරු කළ හැක).</li>' +
-        '<li>Text box එක ළඟ පෙන්වන කුඩා palette එකෙන්: ● Dot Tool එකෙන් ලක්ෂ්‍යයක් යොදන්න, ┃ Line Tool එකෙන් ' +
-        '(tap කර හැරවුම් යොදන්න, double-click කර dot එකක් සමඟ අවසන් කරන්න, දිගු press එකකින් dot එකක් නැතුව අවසන් කරන්න), ' +
-        'හෝ 〜 Freehand Tool එකෙන් නදියක් වැනි නිදහස් හැඩයක් අඳින්න.</li>' +
-      '</ol>' +
-
-      '<h2>Zoom සහ ස්ථානගත වීම (Pan)</h2>' +
-      '<p>ඉහළ ඇති − / + බොත්තම් වලින් හෝ Ctrl + scroll වලින් zoom කළ හැක. Area Tool හෝ Text Tool active කරගත් විට, ' +
-      'screen එකේ පහළ මැදින් ▼ ▲ ▶ ◀ arrow buttons සහ − / + zoom buttons සහිත pad එකක් පෙන්වයි - drawing mode එකේදී ' +
-      'සිතියම අවශ්‍ය තැනට පහසුවෙන් ගෙන යාමට එය භාවිත කරන්න.</p>' +
-
-      '<h2>💾 Save / 📂 Open</h2>' +
-      '<p>ඔබේ වැඩ .json ගොනුවක් ලෙස Save කර පසුව Open කර නැවත එයම load කර ගත හැක.</p>' +
-
-      '<h2>📄 Export</h2>' +
-      '<p>සම්පූර්ණ කළ පසු PDF හෝ JPG ලෙස export කර print/share කළ හැක.</p>' +
-
-      '<div class="note">🗑️ Reset බොත්තමෙන් සියලුම දත්ත මකා නැවත මුල සිට ආරම්භ කළ හැක - මෙය permanent බැවින් careful වන්න.</div>' +
-      '</div></body></html>'
-    );
-    w.document.close();
-  });
-
-  updatePxPerMm();
-})();
+ });
+ return out;
+}
+
+/* ---------- සිතියම ඇඳීම (මෘදු ආවරණය සහිතව) ---------- */
+function draw(){
+ if(!img||!L)return;
+ const g=render(cv,img,L,[],{grid:false});/* පසුබිම පමණි */
+ if($('vOn').checked){g.save();g.globalAlpha=+$('vA').value;g.fillStyle=TONES[+$('vC').value];g.fillRect(L.ix,L.iy,L.iw,L.ih);g.restore();}
+ const arr=effItems(),fs=+$('fsz').value;
+ const S=$('sOn').checked||manual.size?spreadLabels(g,fs):new Map();lastS=S;
+ marked.forEach(i=>{if(!arr[i])return;
+  const main=mainName&&arr[i].n==mainName;
+  if(main){/* තෝරාගත් ස්ථානයේ නම රතු පැහැයෙන් */
+   const ft=g.fillText;
+   g.fillText=function(t,x,y,w){this.fillStyle='#d6212b';return ft.call(this,t,x,y,w);};
+   drawItem(g,L,S.get(i)||arr[i],fs,.15,.17,.14);
+   delete g.fillText;
+  }else drawItem(g,L,S.get(i)||arr[i],fs,.15,.17,.14);
+ });
+}
+
+/* ---------- තෝරාගත් ස්ථාන තිරයට ගැළපෙන සේ zoom කිරීම ---------- */
+function focusOn(idxs,main){
+ const arr=items();let x0=1,y0=1,x1=0,y1=0;
+ const ext=(x,y)=>{x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x);y1=Math.max(y1,y);};
+ idxs.forEach(i=>{const it=arr[i];
+  if(it.t=='p')ext(it.x,it.y);
+  else it.pts.forEach(p=>ext(p[0]+(it.t=='r'?it.ox||0:0),p[1]+(it.t=='r'?it.oy||0:0)));});
+ const bx=[x0-.2,y0-.2,x1+.2,y1+.2];
+ idxs.forEach(i=>{const it=arr[i];
+  if(it.lx!=null&&it.lx>=bx[0]&&it.lx<=bx[2]&&it.ly>=bx[1]&&it.ly<=bx[3])ext(it.lx,it.ly);});
+ const pad=.04,mw=.35,mh=.25,cx=(x0+x1)/2,cy=(y0+y1)/2;
+ x0-=pad;x1+=pad;y0-=pad;y1+=pad;
+ if(x1-x0<mw){x0=cx-mw/2;x1=cx+mw/2;}
+ if(y1-y0<mh){y0=cy-mh/2;y1=cy+mh/2;}
+ marked=new Set(idxs);hl=main&&G.get(main)?G.get(main).a:null;mainName=main&&G.get(main)?main:null;
+ draw();Z.focusRect(x0,y0,x1,y1);
+}
+function pick(name){
+ closeAll();activeCat=null;$('q').value=name;
+ focusOn(nearGroup(name,NN(),$('rOn').checked),name);
+ $('st').textContent=`🎯 ${name}  ${T[lang].near} ${NN()}`;
+}
+/* සැකසුම් වෙනස් කළ විට දැනට තෝරාගත් ස්ථානය නැවත පෙන්වීම (පුවරුව වැසෙන්නේ නැත) */
+function refreshNear(){
+ if(!mainName||!G.get(mainName))return;
+ focusOn(nearGroup(mainName,NN(),$('rOn').checked),mainName);
+ $('st').textContent=`🎯 ${mainName}  ${T[lang].near} ${NN()}`;
+}
+$('nN').oninput=()=>{$('nNv').textContent=$('nN').value;};
+$('nN').onchange=refreshNear;$('rOn').onchange=refreshNear;
+function pickCat(c){
+ closeAll();activeCat=c;
+ const idx=[];G.forEach(e=>{if(e.g.has(c))idx.push(...e.idx);});
+ if(!idx.length)return;
+ $('q').value='';focusOn(idx,null);
+ $('st').textContent=`🗂 ${c}  (${idx.length})`;
+}
+
+/* ---------- පුවරු (panels) ---------- */
+const pops=['plp','typ','stp'];
+function closeAll(){pops.forEach(p=>$(p).style.display='none');$('sug').classList.remove('open');$('lbp').classList.remove('open');$('lbb').classList.remove('on');}
+function togglePop(id,btn,build){
+ const el=$(id),was=el.style.display=='flex';closeAll();if(was)return;
+ if(build)build();el.style.display='flex';
+ const r=btn.getBoundingClientRect();
+ el.style.left=Math.max(4,Math.min(r.left,innerWidth-el.offsetWidth-4))+'px';
+ el.style.top=(r.bottom+6)+'px';
+ el.style.maxHeight=Math.max(200,innerHeight-r.bottom-16)+'px';
+}
+function buildPlaces(){
+ const list=sorted();$('plc').textContent=list.length;
+ $('pli').innerHTML=list.length?list.map(rowHtml).join(''):`<div class="none">${T[lang].nodata}</div>`;
+}
+function buildTypes(){
+ const cnt=new Map();G.forEach(e=>e.g.forEach(c=>cnt.set(c,(cnt.get(c)||0)+1)));
+ const c=coll();
+ $('tyc').innerHTML=cnt.size?[...cnt.entries()].sort((a,b)=>c.compare(a[0],b[0])).map(([k,n])=>`<button type="button" class="chip${k==activeCat?' on':''}" data-c="${esc(k)}">${esc(k)}<i>${n}</i></button>`).join(''):`<div class="none">${T[lang].nodata}</div>`;
+}
+$('plb').onclick=e=>{e.stopPropagation();togglePop('plp',$('plb'),buildPlaces);};
+$('tyb').onclick=e=>{e.stopPropagation();togglePop('typ',$('tyb'),buildTypes);};
+$('stb').onclick=e=>{e.stopPropagation();togglePop('stp',$('stb'));};
+$('pli').onclick=e=>{const r=e.target.closest('[data-n]');if(r)pick(r.dataset.n);};
+$('tyc').onclick=e=>{const b=e.target.closest('[data-c]');if(b)pickCat(b.dataset.c);};
+document.addEventListener('click',e=>{if(!e.target.closest('.pop,.sw'))closeAll();});
+document.addEventListener('keydown',e=>{if(e.key=='Escape'){closeAll();if($('hw').classList.contains('open'))closeHow();}});
+$('plp').onclick=$('typ').onclick=$('stp').onclick=e=>e.stopPropagation();
+['sOn','vOn','vA','vC','fsz'].forEach(id=>$(id).oninput=$(id).onchange=draw);
+
+/* ---------- Search bar ---------- */
+function renderSug(list){
+ sugList=list;sugAct=-1;
+ $('sug').innerHTML=list.length?list.map(rowHtml).join(''):`<div class="none">${T[lang].none}</div>`;
+ $('lbp').classList.remove('open');$('lbb').classList.remove('on');$('sug').classList.add('open');
+}
+$('q').oninput=()=>{
+ const v=norm($('q').value);
+ if(!v){$('sug').classList.remove('open');return;}
+ renderSug(sorted().filter(e=>norm(e.n).includes(v)).sort((a,b)=>(norm(b.n).startsWith(v)-norm(a.n).startsWith(v))).slice(0,12));
+};
+$('q').onfocus=()=>{if($('q').value.trim())$('q').oninput();};
+$('q').onkeydown=e=>{
+ const rows=$('sug').querySelectorAll('.row'),open=$('sug').classList.contains('open');
+ if(e.key=='ArrowDown'&&open&&rows.length){e.preventDefault();sugAct=(sugAct+1)%rows.length;}
+ else if(e.key=='ArrowUp'&&open&&rows.length){e.preventDefault();sugAct=(sugAct-1+rows.length)%rows.length;}
+ else if(e.key=='Enter'){e.preventDefault();const p=sugList[sugAct>=0?sugAct:0];if(p)pick(p.n);return;}
+ else return;
+ rows.forEach((r,i)=>r.classList.toggle('act',i==sugAct));
+};
+$('sug').onclick=e=>{const r=e.target.closest('[data-n]');if(r)pick(r.dataset.n);};
+
+/* ---------- Letter bar (තිරස් අකුරු පුවරුව) ---------- */
+function initials(){
+ const m=new Map();
+ G.forEach(e=>{const ch=Array.from(e.n.trim())[0]||'',k=lang=='en'?ch.toUpperCase():ch;
+  if(!k)return;if(!m.has(k))m.set(k,[]);m.get(k).push(e);});
+ return m;
+}
+function renderLB(){
+ const m=initials(),c=coll(),keys=[...m.keys()].sort((a,b)=>c.compare(a,b));
+ let h=keys.length?`<div class="lbl">${keys.map(k=>`<button type="button" class="${k==lbLetter?'on':''}" data-k="${esc(k)}">${esc(k)}</button>`).join('')}</div>`:`<div class="none">${T[lang].nodata}</div>`;
+ if(lbLetter&&m.has(lbLetter)){h+=`<div class="lbr">${m.get(lbLetter).sort((a,b)=>c.compare(a.n,b.n)).map(rowHtml).join('')}</div>`;}
+ else if(keys.length)h+=`<div class="lbh">${T[lang].pickLetter}</div>`;
+ $('lbp').innerHTML=h;
+}
+$('lbb').onclick=e=>{
+ e.stopPropagation();const was=$('lbp').classList.contains('open');closeAll();if(was)return;
+ lbLetter=null;renderLB();$('lbp').classList.add('open');$('lbb').classList.add('on');
+};
+$('lbp').onclick=e=>{
+ e.stopPropagation();
+ const b=e.target.closest('[data-k]');if(b){lbLetter=b.dataset.k;renderLB();return;}
+ const r=e.target.closest('[data-n]');if(r)pick(r.dataset.n);
+};
+
+/* ---------- භාෂාව / සිතියම් මාරු කිරීම ---------- */
+function fillMapSelect(keep){
+ const s=$('map');s.innerHTML='';MAPS.forEach(m=>s.add(new Option(MN[lang][m.k]||m.name,m.k)));if(keep)s.value=keep;
+}
+function applyUI(){
+ const t=T[lang];
+ document.querySelectorAll('[data-t]').forEach(e=>e.textContent=t[e.dataset.t]);
+ $('q').placeholder=t.ph;
+ const vc=$('vC'),v=vc.value||'0';vc.innerHTML='';t.tones.forEach((n,i)=>vc.add(new Option(n,i)));vc.value=v;
+ document.querySelectorAll('#lang button,.hwlb').forEach(b=>b.classList.toggle('on',b.dataset.l==lang));
+ document.documentElement.lang=lang;
+ if($('hw').classList.contains('open'))buildHow();
+}
+function setLang(l){
+ lang=l;closeAll();applyUI();fillMapSelect(cur&&cur.k);
+ buildGroups();marked=new Set();manual.clear();hl=null;activeCat=null;$('q').value='';
+ $('st').textContent=G.size?T[lang].hint:T[lang].nodata;draw();
+}
+document.querySelectorAll('#lang button,.hwlb').forEach(b=>b.onclick=()=>setLang(b.dataset.l));
+
+/* ---------- How to use කවුළුව ---------- */
+function buildHow(){
+ $('hwb').innerHTML=HOW[lang].map((s,i)=>`<div class="st"><div class="n">${i+1}</div><div><h4>${s[0]}</h4><p>${s[1]}</p>${s[2]?`<div class="tip">💡 ${s[2]}</div>`:''}</div></div>`).join('');
+}
+function openHow(){closeAll();buildHow();$('hw').classList.add('open');$('hwb').scrollTop=0;}
+function closeHow(){
+ $('hw').classList.remove('open');
+ try{if($('hwn').checked)localStorage.setItem('gs_how_seen','1');else localStorage.removeItem('gs_how_seen');}catch(e){}
+}
+$('hwo').onclick=e=>{e.stopPropagation();openHow();};
+$('hwx').onclick=$('hwk').onclick=closeHow;
+$('hw').onclick=e=>{if(e.target===$('hw'))closeHow();};
+
+async function load(k){
+ cur=MAPS.find(m=>m.k==k);closeAll();$('st').textContent=T[lang].loading;
+ img=null;
+ try{await fontReady();img=await loadImg(cur.url);}catch(e){img=null;$('st').textContent='රූපය load වුණේ නැත / Image failed';return;}
+ L=layout(img);buildGroups();marked=new Set();manual.clear();hl=null;activeCat=null;$('q').value='';
+ Z.reset();draw();
+ $('st').textContent=G.size?T[lang].hint:T[lang].nodata;
+}
+$('map').onchange=e=>load(e.target.value);
+
+applyUI();fillMapSelect();$('st').textContent=T[lang].loading;
+loadAll().then(()=>load(MAPS[0].k)).then(()=>{try{if(!localStorage.getItem('gs_how_seen'))openHow();}catch(e){}});/* පළමු වරට පැමිණෙන අයට ස්වයංක්‍රීයව පෙන්වයි */
 </script>
 </body>
 </html>
